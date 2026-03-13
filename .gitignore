@@ -1,0 +1,16 @@
+VENV/
+BACKEND/VENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+.env
+node_modules/
+FRONTEND/node_modules/
+dist/
+build/
+.coverage
+.pytest_cache/
+.ipynb_checkpoints/
+DATA/RAW/
