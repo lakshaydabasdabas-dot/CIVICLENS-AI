@@ -1,93 +1,52 @@
-import { Link, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
+import MagneticButton from "./MagneticButton";
+
+const navItems = [
+  { label: "Home", to: "/" },
+  { label: "About", to: "/about" },
+  { label: "Submit", to: "/submit" },
+  { label: "Dashboard", to: "/dashboard" },
+];
 
 function Navbar() {
-  const location = useLocation();
-
-  const isActive = (path) => location.pathname === path;
-
   return (
-    <nav style={styles.nav}>
-      <div style={styles.brand}>CivicLens AI</div>
-
-      <div style={styles.links}>
-        <Link
+    <header className="site-header">
+      <nav className="site-nav glass-panel">
+        <NavLink
           to="/"
-          style={{
-            ...styles.link,
-            ...(isActive("/") ? styles.activeLink : {}),
-          }}
+          className="site-brand"
+          data-interactive="true"
+          data-cursor-scale="1.3"
         >
-          Home
-        </Link>
+          <span className="site-brand__mark" />
+          <span>
+            <strong>CivicLens AI</strong>
+            <small>Interaction-grade governance UI</small>
+          </span>
+        </NavLink>
 
-        <Link
-          to="/about"
-          style={{
-            ...styles.link,
-            ...(isActive("/about") ? styles.activeLink : {}),
-          }}
-        >
-          About
-        </Link>
+        <div className="site-nav__links">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `site-nav__link ${isActive ? "site-nav__link--active" : ""}`.trim()
+              }
+              data-interactive="true"
+              data-cursor-scale="1.22"
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
 
-        <Link
-          to="/submit"
-          style={{
-            ...styles.link,
-            ...(isActive("/submit") ? styles.activeLink : {}),
-          }}
-        >
-          Submit Complaint
-        </Link>
-
-        <Link
-          to="/dashboard"
-          style={{
-            ...styles.link,
-            ...(isActive("/dashboard") ? styles.activeLink : {}),
-          }}
-        >
-          Dashboard
-        </Link>
-      </div>
-    </nav>
+        <MagneticButton to="/submit" variant="secondary" className="site-nav__cta">
+          Launch Intake
+        </MagneticButton>
+      </nav>
+    </header>
   );
 }
-
-const styles = {
-  nav: {
-    position: "sticky",
-    top: 0,
-    zIndex: 1000,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "16px 28px",
-    background: "#111827",
-    color: "#ffffff",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
-  },
-  brand: {
-    fontSize: "1.2rem",
-    fontWeight: "700",
-    letterSpacing: "0.3px",
-  },
-  links: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-  link: {
-    color: "#d1d5db",
-    textDecoration: "none",
-    padding: "8px 12px",
-    borderRadius: "8px",
-    fontWeight: "600",
-  },
-  activeLink: {
-    background: "#2563eb",
-    color: "#ffffff",
-  },
-};
 
 export default Navbar;

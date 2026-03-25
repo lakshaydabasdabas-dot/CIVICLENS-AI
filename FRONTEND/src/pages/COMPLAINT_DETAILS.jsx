@@ -1,29 +1,44 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import MagneticButton from "../components/MagneticButton";
+import SkeletonBlock from "../components/SkeletonBlock";
+import { createPageAnimations } from "../interactions/animations";
 import { getComplaintById, updateComplaintStatus } from "../services/API.js";
 
 function ComplaintDetails() {
   const { id } = useParams();
+  const pageRef = useRef(null);
   const [complaint, setComplaint] = useState(null);
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => createPageAnimations(pageRef.current), []);
 
   useEffect(() => {
+    const loadComplaint = async () => {
+      setIsLoading(true);
+
+      try {
+        const response = await getComplaintById(id);
+        setComplaint(response.data);
+        setStatus(response.data.status);
+      } catch (error) {
+        console.error(error);
+        setMessage("Failed to load complaint details.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     loadComplaint();
   }, [id]);
 
-  const loadComplaint = async () => {
-    try {
-      const response = await getComplaintById(id);
-      setComplaint(response.data);
-      setStatus(response.data.status);
-    } catch (error) {
-      console.error(error);
-      setMessage("Failed to load complaint details.");
-    }
-  };
-
   const handleStatusUpdate = async () => {
+    setIsSaving(true);
+    setMessage("");
+
     try {
       const response = await updateComplaintStatus(id, { status });
       setComplaint(response.data);
@@ -31,88 +46,97 @@ function ComplaintDetails() {
     } catch (error) {
       console.error(error);
       setMessage("Failed to update status.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  if (!complaint) {
-    return <div style={styles.container}>Loading complaint details...</div>;
-  }
-
   return (
-    <div style={styles.container}>
-      <h1 style={styles.title}>Complaint Details</h1>
+    <div ref={pageRef} className="content-page">
+      <section className="page-hero reveal-in">
+        <span className="section-kicker">Complaint details</span>
+        <h1 className="page-title gradient-reveal">
+          Review the complaint record, AI fields, and resolution status.
+        </h1>
+      </section>
 
-      {message && <p style={styles.message}>{message}</p>}
+      {message ? (
+        <p
+          className={`form-message ${message.includes("Failed") ? "form-message--error" : ""}`.trim()}
+        >
+          {message}
+        </p>
+      ) : null}
 
-      <div style={styles.card}>
-        <p><strong>ID:</strong> {complaint.id}</p>
-        <p><strong>Title:</strong> {complaint.title}</p>
-        <p><strong>Description:</strong> {complaint.description}</p>
-        <p><strong>Location:</strong> {complaint.location}</p>
-        <p><strong>Category:</strong> {complaint.category}</p>
-        <p><strong>Urgency:</strong> {complaint.urgency}</p>
-        <p><strong>Department:</strong> {complaint.department}</p>
-        <p><strong>Status:</strong> {complaint.status}</p>
-        <p><strong>AI Summary:</strong> {complaint.ai_summary}</p>
-
-        <div style={styles.actions}>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} style={styles.select}>
-            <option value="NEW">NEW</option>
-            <option value="IN_PROGRESS">IN_PROGRESS</option>
-            <option value="RESOLVED">RESOLVED</option>
-          </select>
-
-          <button onClick={handleStatusUpdate} style={styles.button}>
-            Update Status
-          </button>
+      {isLoading ? (
+        <div className="detail-card glass-panel">
+          <div className="skeleton-stack">
+            <SkeletonBlock className="skeleton-line skeleton-line--long" />
+            <SkeletonBlock className="skeleton-line skeleton-line--medium" />
+            <SkeletonBlock className="skeleton-card" />
+            <SkeletonBlock className="skeleton-card" />
+          </div>
         </div>
-      </div>
+      ) : complaint ? (
+        <div className="detail-card glass-panel reveal-in">
+          <div className="detail-grid">
+            <div className="detail-item">
+              <span>ID</span>
+              <strong>{complaint.id}</strong>
+            </div>
+            <div className="detail-item">
+              <span>Title</span>
+              <strong>{complaint.title}</strong>
+            </div>
+            <div className="detail-item detail-item--wide">
+              <span>Description</span>
+              <p>{complaint.description}</p>
+            </div>
+            <div className="detail-item">
+              <span>Location</span>
+              <strong>{complaint.location}</strong>
+            </div>
+            <div className="detail-item">
+              <span>Category</span>
+              <strong>{complaint.category}</strong>
+            </div>
+            <div className="detail-item">
+              <span>Urgency</span>
+              <strong>{complaint.urgency}</strong>
+            </div>
+            <div className="detail-item">
+              <span>Department</span>
+              <strong>{complaint.department}</strong>
+            </div>
+            <div className="detail-item detail-item--wide">
+              <span>AI summary</span>
+              <p>{complaint.ai_summary}</p>
+            </div>
+          </div>
+
+          <div className="status-bar">
+            <select
+              className="field-input"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
+              <option value="NEW">NEW</option>
+              <option value="IN_PROGRESS">IN_PROGRESS</option>
+              <option value="RESOLVED">RESOLVED</option>
+            </select>
+
+            <MagneticButton
+              variant="primary"
+              onClick={handleStatusUpdate}
+              disabled={isSaving}
+            >
+              {isSaving ? "Saving..." : "Update Status"}
+            </MagneticButton>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: "100vh",
-    padding: "32px",
-    background: "#f7f9fc",
-  },
-  title: {
-    textAlign: "center",
-    marginBottom: "24px",
-  },
-  message: {
-    textAlign: "center",
-    marginBottom: "16px",
-    color: "#2563eb",
-  },
-  card: {
-    maxWidth: "800px",
-    margin: "0 auto",
-    background: "#ffffff",
-    padding: "24px",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    lineHeight: "1.8",
-  },
-  actions: {
-    marginTop: "20px",
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-  select: {
-    padding: "10px",
-    borderRadius: "8px",
-  },
-  button: {
-    padding: "10px 16px",
-    background: "#2563eb",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-};
 
 export default ComplaintDetails;
