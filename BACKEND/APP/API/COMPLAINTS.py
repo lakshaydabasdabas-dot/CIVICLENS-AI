@@ -15,11 +15,9 @@ from APP.CORE.DATABASE import get_db
 from APP.MODELS.COMPLAINT import Complaint
 from APP.SCHEMAS.COMPLAINT_SCHEMA import ComplaintCreate, ComplaintResponse
 
-from APP.SERVICES.PREPROCESS_SERVICE import clean_text
-from APP.SERVICES.CLASSIFIER_SERVICE import predict_category
-from APP.SERVICES.URGENCY_SERVICE import predict_urgency
-from APP.SERVICES.ROUTER_SERVICE import predict_department
 from APP.SERVICES.DUPLICATE_SERVICE import find_possible_duplicate
+from APP.SERVICES.OPENAI_ANALYSIS_SERVICE import analyzeComplaint
+from APP.SERVICES.PREPROCESS_SERVICE import clean_text
 
 router = APIRouter()
 
@@ -36,26 +34,24 @@ def create_complaint(payload: ComplaintCreate, db: Session = Depends(get_db)):
     """
     combined_text = f"{payload.title} {payload.description}".strip()
     cleaned_text = clean_text(combined_text)
-
-    category = predict_category(cleaned_text)
-    urgency = predict_urgency(cleaned_text)
-    department = predict_department(category, cleaned_text)
-    duplicate_result = find_possible_duplicate(cleaned_text)
-
-    ai_summary = (
-        f"Complaint categorized as {category}, marked {urgency} urgency, "
-        f"and routed to {department}."
+    analysis_input = (
+        f"Title: {payload.title}\n"
+        f"Description: {payload.description}\n"
+        f"Location: {payload.location or 'Not provided'}"
     )
+
+    analysis = analyzeComplaint(analysis_input)
+    duplicate_result = find_possible_duplicate(cleaned_text)
 
     new_complaint = Complaint(
         title=payload.title,
         description=payload.description,
         location=payload.location,
         submitted_by=payload.submitted_by,
-        category=category,
-        urgency=urgency,
-        department=department,
-        ai_summary=ai_summary,
+        category=analysis["category"],
+        urgency=analysis["urgency"],
+        department=analysis["department"],
+        ai_summary=analysis["ai_summary"],
         duplicate_of=duplicate_result["duplicate_of"],
         similarity_score=duplicate_result["similarity_score"],
         status="NEW"

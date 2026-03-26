@@ -906,6 +906,7 @@ svg {
 .cta-shell,
 .analysis-panel,
 .complaint-form,
+.map-panel,
 .chart-card,
 .dashboard-card,
 .detail-card,
@@ -1023,6 +1024,110 @@ svg {
   width: var(--container);
   margin: 0 auto 24px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.map-panel {
+  width: var(--container);
+  margin: 0 auto 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.map-panel__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.map-panel__header h2 {
+  margin: 10px 0 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.35rem;
+}
+
+.map-panel__stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.map-panel__stats span {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #eef4ff;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+
+.map-panel__copy {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.map-shell {
+  position: relative;
+  min-height: 440px;
+  border-radius: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(140, 182, 255, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(7, 16, 34, 0.84), rgba(4, 9, 19, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.map-canvas {
+  width: 100%;
+  min-height: 440px;
+}
+
+.map-placeholder,
+.map-empty-state {
+  min-height: 440px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 28px;
+  color: var(--text-muted);
+}
+
+.map-empty-state {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(3, 8, 18, 0.18), rgba(3, 8, 18, 0.58));
+  pointer-events: none;
+}
+
+.map-empty-state p,
+.map-placeholder p {
+  max-width: 420px;
+  margin: 0;
+  line-height: 1.7;
+}
+
+.map-info-window {
+  max-width: 220px;
+  color: #142136;
+}
+
+.map-info-window strong,
+.map-info-window p,
+.map-info-window span {
+  display: block;
+}
+
+.map-info-window p {
+  margin: 8px 0 10px;
+  color: #30435f;
+}
+
+.map-info-window span {
+  color: #4a607d;
+  font-size: 0.82rem;
 }
 
 .dashboard-card {
@@ -1265,6 +1370,7 @@ svg {
   .dashboard-card,
   .complaint-form,
   .analysis-panel,
+  .map-panel,
   .table-panel,
   .detail-card,
   .story-visual,

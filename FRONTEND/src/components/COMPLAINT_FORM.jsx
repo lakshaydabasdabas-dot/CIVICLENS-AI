@@ -1,60 +1,77 @@
 import { useState } from "react";
 import MagneticButton from "./MagneticButton";
+import LocationPickerMap from "./LocationPickerMap.jsx";
 import SkeletonBlock from "./SkeletonBlock";
-import { analyzeComplaint, createComplaint } from "../services/API.js";
+import { createComplaint } from "../services/API.js";
+import { useComplaints } from "../context/useComplaints.js";
+import { useComplaintLocation } from "../hooks/useComplaintLocation.js";
 
 function ComplaintForm() {
+  const { addComplaint } = useComplaints();
+  const {
+    locationInput,
+    locationState,
+    locationError,
+    isResolvingLocation,
+    updateLocationInput,
+    selectLocationFromMap,
+    resolveLocation,
+    resetLocation,
+  } = useComplaintLocation();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
   const [analysis, setAnalysis] = useState(null);
   const [message, setMessage] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleAnalyze = async () => {
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setIsSubmitting(true);
     setIsAnalyzing(true);
     setMessage("");
 
     try {
-      const response = await analyzeComplaint({
-        title,
-        description,
-        location,
+      if (!title.trim() || !description.trim()) {
+        throw new Error("Title and description are required.");
+      }
+
+      const resolvedLocation = await resolveLocation();
+      const response = await createComplaint({
+        title: title.trim(),
+        description: description.trim(),
+        location: resolvedLocation.name,
+        submitted_by: "Lakshay",
       });
 
-      setAnalysis(response.data);
-      setMessage("AI analysis completed.");
-    } catch (error) {
-      console.error(error);
-      setMessage("Failed to analyze complaint.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+      setAnalysis({
+        category: response.data.category,
+        department: response.data.department,
+        urgency: response.data.urgency,
+        ai_summary: response.data.ai_summary,
+      });
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setMessage("");
-
-    try {
-      await createComplaint({
-        title,
-        description,
-        location,
-        submitted_by: "Lakshay",
+      addComplaint({
+        ...response.data,
+        location: resolvedLocation.name,
+        lat: resolvedLocation.lat,
+        lng: resolvedLocation.lng,
       });
 
       setMessage("Complaint submitted successfully.");
       setTitle("");
       setDescription("");
-      setLocation("");
-      setAnalysis(null);
+      resetLocation();
     } catch (error) {
       console.error(error);
-      setMessage("Failed to submit complaint.");
+      setMessage(
+        error.response?.data?.detail ||
+          error.response?.data?.message ||
+          error.message ||
+          "Failed to submit complaint."
+      );
     } finally {
+      setIsAnalyzing(false);
       setIsSubmitting(false);
     }
   };
@@ -97,26 +114,28 @@ function ComplaintForm() {
           <input
             id="complaint-location"
             className="field-input"
-            value={location}
-            onChange={(event) => setLocation(event.target.value)}
+            value={locationInput}
+            onChange={(event) => updateLocationInput(event.target.value)}
+            onBlur={() => {
+              if (locationInput.trim()) {
+                void resolveLocation().catch(() => {});
+              }
+            }}
             placeholder="Campus, ward, building, or public service area"
+            required
           />
+
+          {locationError ? (
+            <p className="form-message form-message--error">{locationError}</p>
+          ) : null}
         </div>
 
         <div className="form-actions">
           <MagneticButton
-            variant="secondary"
-            onClick={handleAnalyze}
-            disabled={isAnalyzing || isSubmitting}
-          >
-            {isAnalyzing ? "Analyzing..." : "AI Analyze"}
-          </MagneticButton>
-
-          <MagneticButton
             variant="primary"
             type="submit"
             magnetic={!isSubmitting}
-            disabled={isAnalyzing || isSubmitting}
+            disabled={isSubmitting || isResolvingLocation}
           >
             {isSubmitting ? "Submitting..." : "Submit Complaint"}
           </MagneticButton>
@@ -128,6 +147,11 @@ function ComplaintForm() {
           <span className="section-kicker">AI preview</span>
           <h2>Analysis output</h2>
         </div>
+
+        <LocationPickerMap
+          selectedLocation={locationState}
+          onLocationSelect={selectLocationFromMap}
+        />
 
         {isAnalyzing ? (
           <div className="skeleton-stack">
@@ -154,12 +178,22 @@ function ComplaintForm() {
           </div>
         ) : (
           <p className="empty-state">
-            Run AI analysis to preview category, department, urgency, and the
-            generated summary before you submit.
+            Type a location or click the map to sync the address. AI analysis runs
+            automatically when you submit the complaint.
           </p>
         )}
 
-        {message ? <p className="form-message">{message}</p> : null}
+        {message ? (
+          <p
+            className={`form-message ${
+              message.toLowerCase().includes("failed") || message.toLowerCase().includes("required")
+                ? "form-message--error"
+                : ""
+            }`.trim()}
+          >
+            {message}
+          </p>
+        ) : null}
       </div>
     </div>
   );

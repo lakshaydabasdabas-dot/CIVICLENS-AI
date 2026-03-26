@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Bar,
@@ -13,9 +13,10 @@ import {
   YAxis,
 } from "recharts";
 import InteractiveCard from "../components/InteractiveCard";
+import MapComponent from "../components/MapComponent.jsx";
 import SkeletonBlock from "../components/SkeletonBlock";
+import { useComplaints } from "../context/useComplaints.js";
 import { createPageAnimations } from "../interactions/animations";
-import { getAllComplaints, getDashboardStats } from "../services/API.js";
 
 const pieColors = ["#e7b86f", "#79d4b2", "#8cb6ff", "#f28b74", "#d6a2ff", "#9be4ff"];
 
@@ -41,38 +42,39 @@ const DashboardSkeleton = () => (
   </>
 );
 
+function countBy(items, key, fallbackLabel) {
+  const counts = items.reduce((accumulator, item) => {
+    const label = item[key] || fallbackLabel;
+    accumulator[label] = (accumulator[label] || 0) + 1;
+    return accumulator;
+  }, {});
+
+  return Object.entries(counts)
+    .map(([label, count]) => ({ [key]: label, count }))
+    .sort((left, right) => right.count - left.count);
+}
+
+function buildDashboardStats(complaints) {
+  return {
+    total_complaints: complaints.length,
+    new_complaints: complaints.filter((complaint) => complaint.status === "NEW").length,
+    in_progress_complaints: complaints.filter(
+      (complaint) => complaint.status === "IN_PROGRESS"
+    ).length,
+    resolved_complaints: complaints.filter((complaint) => complaint.status === "RESOLVED")
+      .length,
+    complaints_by_category: countBy(complaints, "category", "Uncategorized"),
+    complaints_by_urgency: countBy(complaints, "urgency", "Unknown"),
+    complaints_by_department: countBy(complaints, "department", "Unassigned"),
+  };
+}
+
 function AdminDashboard() {
   const pageRef = useRef(null);
-  const [stats, setStats] = useState(null);
-  const [complaints, setComplaints] = useState([]);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const { complaints, error, isLoading } = useComplaints();
 
   useEffect(() => createPageAnimations(pageRef.current), []);
-
-  useEffect(() => {
-    const loadDashboard = async () => {
-      setIsLoading(true);
-      setError("");
-
-      try {
-        const [statsResponse, complaintsResponse] = await Promise.all([
-          getDashboardStats(),
-          getAllComplaints(),
-        ]);
-
-        setStats(statsResponse.data);
-        setComplaints(complaintsResponse.data);
-      } catch (loadError) {
-        console.error(loadError);
-        setError("Failed to load dashboard data.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadDashboard();
-  }, []);
+  const stats = buildDashboardStats(complaints);
 
   return (
     <div ref={pageRef} className="content-page">
@@ -93,29 +95,28 @@ function AdminDashboard() {
         <DashboardSkeleton />
       ) : (
         <>
-          {stats ? (
-            <div className="stats-grid stagger-group">
-              <InteractiveCard className="dashboard-card glass-panel">
-                <span className="metric-card__label">Total complaints</span>
-                <strong className="dashboard-value">{stats.total_complaints}</strong>
-              </InteractiveCard>
-              <InteractiveCard className="dashboard-card glass-panel">
-                <span className="metric-card__label">New</span>
-                <strong className="dashboard-value">{stats.new_complaints}</strong>
-              </InteractiveCard>
-              <InteractiveCard className="dashboard-card glass-panel">
-                <span className="metric-card__label">In progress</span>
-                <strong className="dashboard-value">{stats.in_progress_complaints}</strong>
-              </InteractiveCard>
-              <InteractiveCard className="dashboard-card glass-panel">
-                <span className="metric-card__label">Resolved</span>
-                <strong className="dashboard-value">{stats.resolved_complaints}</strong>
-              </InteractiveCard>
-            </div>
-          ) : null}
+          <div className="stats-grid stagger-group">
+            <InteractiveCard className="dashboard-card glass-panel">
+              <span className="metric-card__label">Total complaints</span>
+              <strong className="dashboard-value">{stats.total_complaints}</strong>
+            </InteractiveCard>
+            <InteractiveCard className="dashboard-card glass-panel">
+              <span className="metric-card__label">New</span>
+              <strong className="dashboard-value">{stats.new_complaints}</strong>
+            </InteractiveCard>
+            <InteractiveCard className="dashboard-card glass-panel">
+              <span className="metric-card__label">In progress</span>
+              <strong className="dashboard-value">{stats.in_progress_complaints}</strong>
+            </InteractiveCard>
+            <InteractiveCard className="dashboard-card glass-panel">
+              <span className="metric-card__label">Resolved</span>
+              <strong className="dashboard-value">{stats.resolved_complaints}</strong>
+            </InteractiveCard>
+          </div>
 
-          {stats ? (
-            <div className="chart-grid stagger-group">
+          <MapComponent complaints={complaints} />
+
+          <div className="chart-grid stagger-group">
               <div className="chart-card glass-panel">
                 <h3>Complaints by category</h3>
                 <div className="chart-wrapper">
@@ -189,7 +190,6 @@ function AdminDashboard() {
                 </div>
               </div>
             </div>
-          ) : null}
 
           <div className="table-panel glass-panel reveal-in">
             <h2>Recent complaints</h2>
