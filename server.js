@@ -51,21 +51,7 @@ app.use((req, res, next) => {
   return next();
 });
 
-function readPort() {
-  const rawPort = process.env.PORT;
-
-  if (!rawPort) {
-    throw new Error("PORT environment variable is required.");
-  }
-
-  const port = Number.parseInt(rawPort, 10);
-
-  if (!Number.isInteger(port) || port <= 0) {
-    throw new Error("PORT environment variable must be a positive integer.");
-  }
-
-  return port;
-}
+function readPort() {\n  const rawPort = process.env.PORT;\n  console.log(`CivicLens: Raw PORT env value: "${rawPort || '<missing>'}"`);\n\n  if (!rawPort) {\n    throw new Error("PORT environment variable is required.");\n  }\n\n  const port = Number.parseInt(rawPort, 10);\n\n  if (!Number.isInteger(port) || port <= 0) {\n    throw new Error("PORT environment variable must be a positive integer.");\n  }\n\n  return port;\n}
 
 function readPositiveInteger(rawValue, fallbackValue) {
   const numericValue = Number.parseInt(rawValue, 10);
@@ -1122,10 +1108,7 @@ app.use((error, req, res, next) => {
   return sendJsonError(res, 500, "Internal server error.");
 });
 
-const port = readPort();
-const server = app.listen(port, "0.0.0.0", () => {
-  console.log(`CivicLens backend listening on 0.0.0.0:${port}`);
-});
+console.log("CivicLens: Starting on Cloud Run compatible config");\nconsole.log("CivicLens: Reading PORT env...");\nconst port = readPort();\nconsole.log(`CivicLens: PORT=${port} validated successfully`);\nconsole.log("CivicLens: Starting Express server on 0.0.0.0...");\nconst server = app.listen(port, "0.0.0.0", () => {\n  console.log(`CivicLens: ✅ Server listening on 0.0.0.0:${port}`);\n  console.log("CivicLens: Health endpoint ready at /api/health");\n});
 
 function shutdown(signal) {
   console.log(`${signal} received, shutting down.`);

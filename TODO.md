@@ -1,1 +1,20 @@
-# Hotspot Clustering Implementation TODO&#10;&#10;## [x] Step 1: Verify existing implementation&#10;- File: FRONTEND/src/utils/hotspotClustering.js already has:&#10;  * createHotspotClusters(gridSize=0.1, min=2, max=10)&#10;  * Dynamic grid clustering (no hardcode)&#10;  * Avg center, count, complaintIds[]&#10;  * Sort desc by count&#10;  * Ready output format&#10;&#10;## [ ] Step 2: Enhance for "trend view"&#10;- Add getTopHotspotsForTrend(hotspots, days=7) → top 5 + %change&#10;- Export as main entry&#10;&#10;## [ ] Step 3: Integrate in Dashboard&#10;- Edit ADMIN_DASHBOARD.jsx → Compute/use hotspots from complaints&#10;- Add "Top Hotspots" section (table/list)&#10;&#10;## [ ] Step 4: Test&#10;- start_all.sh&#10;- Submit 5+ complaints different areas&#10;- Verify clusters on /dashboard&#10;&#10;## [ ] Step 5: Complete
+# Cloud Run server.js Fix TODO
+
+## Status: [ ] In Progress
+
+### Step 1: [ ] Add Cloud Run debug logging to server.js
+- Log before/after readPort()
+- Confirm listen success
+- Edit server.js with precise diff
+
+### Step 2: [ ] Test locally  
+- Run `PORT=8080 npm start`
+- Verify `curl http://localhost:8080/api/health`
+
+### Step 3: [ ] Validate no other issues
+- Check Docker build
+- Confirm no FRONTEND/dist dependency
+
+### Step 4: [ ] Complete & test deploy
+- Redeploy to Cloud Run  
+- Verify health endpoint works
