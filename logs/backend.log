@@ -6,3 +6,5 @@ INFO:     127.0.0.1:35280 - "GET /api/health/ HTTP/1.1" 200 OK
 INFO:     127.0.0.1:35288 - "GET /api/health/ HTTP/1.1" 200 OK
 INFO:     127.0.0.1:35998 - "GET /api/complaints/ HTTP/1.1" 200 OK
 INFO:     127.0.0.1:36008 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54900 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34176 - "GET /api/complaints/ HTTP/1.1" 200 OK
