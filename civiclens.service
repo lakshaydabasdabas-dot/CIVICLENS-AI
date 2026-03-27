@@ -1,0 +1,15 @@
+[Unit]
+Description=CivicLens AI Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=/home/$USER/Downloads/CIVICLENS-AI/BACKEND
+Environment="PATH=/home/$USER/Downloads/CIVICLENS-AI/BACKEND/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/$USER/Downloads/CIVICLENS-AI/BACKEND/.venv/bin/python -m uvicorn APP.MAIN:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

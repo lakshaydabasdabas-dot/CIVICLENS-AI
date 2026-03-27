@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Complaint API</title>
+    <script>
+        async function testComplaintAPI() {
+            const id = 1;
+            console.log('Testing complaint API for ID:', id);
+            
+            try {
+                const response = await fetch(`/api/complaints/${id}`);
+                console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Complaint data:', data);
+                    document.getElementById('result').innerHTML = 
+                        `<h3>Success!</h3>
+                         <p>Title: ${data.title}</p>
+                         <p>Description: ${data.description}</p>`;
+                } else {
+                    console.error('API error:', response.status, response.statusText);
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    document.getElementById('result').innerHTML = 
+                        `<h3>Error ${response.status}</h3><p>${errorText}</p>`;
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                document.getElementById('result').innerHTML = 
+                    `<h3>Network Error</h3><p>${error.message}</p>`;
+            }
+        }
+        
+        // Test the API when page loads
+        window.onload = testComplaintAPI;
+    </script>
+</head>
+<body>
+    <h1>Test Complaint API</h1>
+    <p>Testing the complaint detail endpoint...</p>
+    <div id="result">Loading...</div>
+</body>
+</html>

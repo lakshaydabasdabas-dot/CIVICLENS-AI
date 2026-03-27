@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Complaint Detail Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Test Complaint Detail Page Fix</h1>
+    
+    <div class="test">
+        <h3>Test 1: Backend API</h3>
+        <button onclick="testBackendAPI()">Test Backend</button>
+        <div id="backend-result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>Test 2: Frontend Proxy</h3>
+        <button onclick="testFrontendProxy()">Test Proxy</button>
+        <div id="proxy-result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>Test 3: Simulate Navigation</h3>
+        <p>Simulate clicking complaint ID 1:</p>
+        <button onclick="simulateNavigation()">Navigate to Complaint #1</button>
+        <div id="nav-result"></div>
+    </div>
+    
+    <script>
+        async function testBackendAPI() {
+            const result = document.getElementById('backend-result');
+            result.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/complaints/1');
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML = `<span class="success">✅ Backend working! Title: ${data.title}</span>`;
+                } else {
+                    result.innerHTML = `<span class="error">❌ Backend error: ${response.status}</span>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Backend unreachable: ${error.message}</span>`;
+            }
+        }
+        
+        async function testFrontendProxy() {
+            const result = document.getElementById('proxy-result');
+            result.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch('/api/complaints/1');
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML = `<span class="success">✅ Proxy working! Title: ${data.title}</span>`;
+                } else {
+                    result.innerHTML = `<span class="error">❌ Proxy error: ${response.status}</span>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Proxy error: ${error.message}</span>`;
+            }
+        }
+        
+        function simulateNavigation() {
+            const result = document.getElementById('nav-result');
+            result.innerHTML = 'Navigating...';
+            
+            // Simulate what happens when clicking a complaint
+            const complaintId = 1;
+            const url = `/#/complaint/${complaintId}`;
+            
+            result.innerHTML = `
+                <span class="success">✅ Navigation simulated</span><br>
+                <strong>URL:</strong> ${url}<br>
+                <strong>Expected behavior:</strong><br>
+                1. React Router should match route /complaint/:id<br>
+                2. ComplaintDetails component should render<br>
+                3. useEffect should fetch complaint data<br>
+                4. Data should display in the UI<br>
+                <br>
+                <strong>Check browser console for debug logs (🔍 tags)</strong>
+            `;
+            
+            // Update browser URL without reloading
+            window.location.hash = `/complaint/${complaintId}`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+nohup: ignoring input
+🚀 Starting CivicLens AI Backend...
+⏳ Waiting for backend to start...
+✅ Backend started successfully on http://127.0.0.1:8000
+\n🚀 Starting CivicLens AI Frontend...
+⏳ Waiting for frontend to start...
+✅ Frontend started successfully on http://localhost:5173
+\n🎉 CivicLens AI is now running!
+
+🔗 Access URLs:
+   Frontend: http://localhost:5173
+   Backend API: http://127.0.0.1:8000
+   API Docs: http://127.0.0.1:8000/docs
+   Health Check: http://127.0.0.1:8000/api/health/
+
+📋 Logs:
+   Backend: /home/lakshay/Downloads/CIVICLENS-AI/logs/backend.log
+   Frontend: /home/lakshay/Downloads/CIVICLENS-AI/logs/frontend.log
+
+🛑 Press Ctrl+C to stop all services
+
+==> /home/lakshay/Downloads/CIVICLENS-AI/logs/backend.log <==
+INFO:     Started server process [199953]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57918 - "GET /api/health/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56202 - "GET /api/health/ HTTP/1.1" 200 OK
+
+==> /home/lakshay/Downloads/CIVICLENS-AI/logs/frontend.log <==
+11:45:51 PM [vite] vite.config.js changed, restarting server...
+11:45:51 PM [vite] server restarted.
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.45:5174/
+11:46:11 PM [vite] vite.config.js changed, restarting server...
+11:46:11 PM [vite] server restarted.
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: use --host to expose
+
+==> /home/lakshay/Downloads/CIVICLENS-AI/logs/backend.log <==
+INFO:     127.0.0.1:54240 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54242 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34122 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34126 - "GET /api/complaints/ HTTP/1.1" 200 OK
+AI FUNCTION CALLED
+[AI ANALYSIS SERVICE] AI API key is not configured. Using fallback.
+FINAL OUTPUT: {'main_category': 'public_safety', 'category': 'public_safety', 'subcategory': 'streetlight_not_working', 'department': 'electricity_board', 'urgency': 'medium', 'summary': 'Complaint routed as a streetlight public safety issue based on fallback keywords.', 'confidence': 0.0, 'source': 'fallback', 'ai_summary': 'Complaint routed as a streetlight public safety issue based on fallback keywords.'}
+INFO:     127.0.0.1:38366 - "POST /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47602 - "GET /api/complaints/12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47604 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47608 - "GET /api/complaints/12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47622 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60864 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60880 - "GET /api/complaints/ HTTP/1.1" 200 OK
+AI FUNCTION CALLED
+[AI ANALYSIS SERVICE] AI API key is not configured. Using fallback.
+FINAL OUTPUT: {'main_category': 'public_safety', 'category': 'public_safety', 'subcategory': 'streetlight_not_working', 'department': 'electricity_board', 'urgency': 'medium', 'summary': 'Complaint routed as a streetlight public safety issue based on fallback keywords.', 'confidence': 0.0, 'source': 'fallback', 'ai_summary': 'Complaint routed as a streetlight public safety issue based on fallback keywords.'}
+INFO:     127.0.0.1:60254 - "POST /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36960 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36966 - "GET /api/complaints/ HTTP/1.1" 200 OK
+AI FUNCTION CALLED
+[AI ANALYSIS SERVICE] AI API key is not configured. Using fallback.
+FINAL OUTPUT: {'main_category': 'public_safety', 'category': 'public_safety', 'subcategory': 'streetlight_not_working', 'department': 'electricity_board', 'urgency': 'medium', 'summary': 'Complaint routed as a streetlight public safety issue based on fallback keywords.', 'confidence': 0.0, 'source': 'fallback', 'ai_summary': 'Complaint routed as a streetlight public safety issue based on fallback keywords.'}
+INFO:     127.0.0.1:37216 - "POST /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58962 - "GET /api/complaints/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58978 - "GET /api/complaints/ HTTP/1.1" 200 OK
+Terminated                 tail -f "$BACKEND_LOG" "$FRONTEND_LOG"
+\n🛑 Stopping all services...
+✅ Services stopped
+\n🛑 Stopping all services...
+✅ Services stopped
