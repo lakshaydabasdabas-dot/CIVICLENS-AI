@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+// Use environment variable or fallback for production
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
+  (import.meta.env.PROD ? "https://hackathon-967970713788.europe-west1.run.app/api" : "/api");
 
 const API = axios.create({
   baseURL: API_BASE_URL,
@@ -10,14 +12,30 @@ const API = axios.create({
   },
 });
 
+// Add request interceptor for CORS credentials if needed
+API.interceptors.request.use(
+  (config) => {
+    if (import.meta.env.PROD) {
+      config.withCredentials = false; // Set to true if backend supports credentials
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (!error.response) {
-      error.message =
-        "Backend is unreachable. Check VITE_API_BASE_URL or start the API server.";
+      const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+      error.message = `Backend unreachable at ${baseUrl}. Check network or CORS configuration.`;
     }
 
+    // Handle CORS errors specifically
+    if (error.message.includes('CORS') || error.message.includes('Network Error')) {
+      error.message = `CORS error: Frontend cannot reach backend at ${API_BASE_URL}. Check backend CORS configuration.`;
+    }
+    
     return Promise.reject(error);
   }
 );

@@ -8,11 +8,11 @@ export default defineConfig(({ mode }) => ({
     host: true,
     port: 5173,
     strictPort: true,
-    proxy: {
+    proxy: mode === "development" ? {
       "/api": {
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
       },
-    },
+    } : undefined,
   },
 }));
