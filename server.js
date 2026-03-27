@@ -37,14 +37,20 @@ if (!process.env.SESSION_SECRET) {
 }
 
 app.use((req, res, next) => {
-  const allowedOrigin = process.env.CORS_ALLOW_ORIGIN;
-
-  if (allowedOrigin) {
+  const allowedOrigin = process.env.CORS_ALLOW_ORIGIN || "https://civiclens-ai-phi.vercel.app";
+  
+  // Allow specific origins or all in development
+  if (allowedOrigin === "*" || allowedOrigin.includes(req.headers.origin)) {
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || allowedOrigin);
+  } else {
     res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-    res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS");
   }
+  
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Max-Age", "86400"); // 24 hours
 
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
