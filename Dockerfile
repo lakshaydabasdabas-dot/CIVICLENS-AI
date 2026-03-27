@@ -1,20 +1,25 @@
-# Use official Node.js runtime
+# Use Node
 FROM node:20-alpine
 
-# Set working directory
+# Set working dir
 WORKDIR /app
 
-# Copy package files first (for caching)
+# Copy root files
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install --production
 
-# Copy rest of the app
+# Copy everything
 COPY . .
 
-# Expose Cloud Run port
+# -------- BUILD FRONTEND --------
+WORKDIR /app/FRONTEND
+RUN npm install && npm run build
+
+# -------- BACK TO ROOT --------
+WORKDIR /app
+
+# Expose port
 EXPOSE 8080
 
-# Start app
+# Start backend
 CMD ["node", "server.js"]
