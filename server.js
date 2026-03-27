@@ -11,7 +11,7 @@ app.use(express.json({ limit: "1mb" }));
 
 const DEFAULT_CENTER = Object.freeze({ lat: 28.6139, lng: 77.209 });
 const ALLOWED_STATUSES = new Set(["NEW", "IN_PROGRESS", "RESOLVED"]);
-const FRONTEND_DIST_DIR = path.join(__dirname, "FRONTEND", "dist");
+
 const FRONTEND_INDEX_FILE = path.join(FRONTEND_DIST_DIR, "index.html");
 const HAS_FRONTEND_BUNDLE = fs.existsSync(FRONTEND_INDEX_FILE);
 
