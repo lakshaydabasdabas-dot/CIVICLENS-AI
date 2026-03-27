@@ -1,12 +1,9 @@
-# Cloud Run Startup Crash Fix
+# Cloud Run Express Startup Fix Progress
 
-**Crash Points Identified:**
-1. fs.existsSync missing FRONTEND/dist → ENOENT  
-2. readPositiveInteger called before defined → ReferenceError
-3. No startup error handling
-
-## Plan:
-1. [ ] Wrap fs.existsSync with try-catch safe fallback
-2. [ ] Move env consts after function definitions  
-3. [ ] Add startup try-catch → server ALWAYS starts
-4. [ ] Test PORT=808
+## Steps:
+- [x] **Step 1**: Create TODO.md with approved plan (done)
+- [x] **Step 2**: Edit server.js to fix ReferenceError (FRONTEND_DIST_DIR undefined)
+- [ ] **Step 3**: Test locally with `PORT=8080 node server.js`
+- [ ] **Step 4**: Verify /health endpoint responds
+- [ ] **Step 5**: Deploy to Cloud Run and confirm startup
+- [ ] **Step 6**: Mark complete and cleanup TODO
