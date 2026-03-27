@@ -6,6 +6,15 @@ import { createComplaint } from "../services/API.js";
 import { useComplaints } from "../context/useComplaints.js";
 import { useComplaintLocation } from "../hooks/useComplaintLocation.js";
 
+function AnalysisChip({ label, value }) {
+  return (
+    <div className="analysis-chip">
+      <span>{label}</span>
+      <strong>{value || "N/A"}</strong>
+    </div>
+  );
+}
+
 function ComplaintForm() {
   const { addComplaint } = useComplaints();
   const {
@@ -18,6 +27,7 @@ function ComplaintForm() {
     resolveLocation,
     resetLocation,
   } = useComplaintLocation();
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [analysis, setAnalysis] = useState(null);
@@ -37,28 +47,33 @@ function ComplaintForm() {
       }
 
       const resolvedLocation = await resolveLocation();
+
       const response = await createComplaint({
         title: title.trim(),
         description: description.trim(),
         location: resolvedLocation.name,
+        lat: resolvedLocation.lat,
+        lng: resolvedLocation.lng,
         submitted_by: "Lakshay",
       });
 
+      const complaint = response.data;
+
       setAnalysis({
-        category: response.data.category,
-        department: response.data.department,
-        urgency: response.data.urgency,
-        ai_summary: response.data.ai_summary,
+        category: complaint.category,
+        department: complaint.department,
+        urgency: complaint.urgency,
+        priority_score: complaint.priority_score,
+        ai_summary: complaint.ai_summary,
+        region: complaint.region,
+        locality: complaint.locality,
+        duplicate_of: complaint.duplicate_of,
+        similarity_score: complaint.similarity_score,
       });
 
-      addComplaint({
-        ...response.data,
-        location: resolvedLocation.name,
-        lat: resolvedLocation.lat,
-        lng: resolvedLocation.lng,
-      });
-
+      addComplaint(complaint);
       setMessage("Complaint submitted successfully.");
+
       setTitle("");
       setDescription("");
       resetLocation();
@@ -76,9 +91,19 @@ function ComplaintForm() {
     }
   };
 
+  const hasErrorMessage =
+    message.toLowerCase().includes("failed") ||
+    message.toLowerCase().includes("required") ||
+    message.toLowerCase().includes("invalid");
+
   return (
-    <div className="form-layout">
-      <form className="complaint-form glass-panel reveal-in" onSubmit={handleSubmit}>
+    <div className="complaint-form-layout">
+      <form className="glass-panel reveal-in" onSubmit={handleSubmit}>
+        <div className="form-header">
+          <span className="section-kicker">Complaint details</span>
+          <h2>Register a civic grievance</h2>
+        </div>
+
         <div className="field-group">
           <label className="field-label" htmlFor="complaint-title">
             Complaint title
@@ -88,7 +113,7 @@ function ComplaintForm() {
             className="field-input"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Example: Streetlight outage near hostel block"
+            placeholder="Example: Streetlight outage near Rohini sector road"
             required
           />
         </div>
@@ -99,10 +124,11 @@ function ComplaintForm() {
           </label>
           <textarea
             id="complaint-description"
-            className="field-input field-input--textarea"
+            className="field-input"
+            rows={6}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="Describe the issue with enough context for triage and routing."
+            placeholder="Describe the issue with enough context for triage, routing, and duplicate detection."
             required
           />
         </div>
@@ -121,10 +147,9 @@ function ComplaintForm() {
                 void resolveLocation().catch(() => {});
               }
             }}
-            placeholder="Campus, ward, building, or public service area"
+            placeholder="Locality, ward, road, colony, or public service area"
             required
           />
-
           {locationError ? (
             <p className="form-message form-message--error">{locationError}</p>
           ) : null}
@@ -162,33 +187,45 @@ function ComplaintForm() {
           </div>
         ) : analysis ? (
           <div className="analysis-results">
-            <div className="analysis-chip">
-              <span>Category</span>
-              <strong>{analysis.category}</strong>
+            <div className="analysis-results__grid">
+              <AnalysisChip label="Category" value={analysis.category} />
+              <AnalysisChip label="Department" value={analysis.department} />
+              <AnalysisChip label="Urgency" value={analysis.urgency} />
+              <AnalysisChip
+                label="Priority score"
+                value={analysis.priority_score}
+              />
+              <AnalysisChip label="Region" value={analysis.region} />
+              <AnalysisChip label="Locality" value={analysis.locality} />
             </div>
-            <div className="analysis-chip">
-              <span>Department</span>
-              <strong>{analysis.department}</strong>
-            </div>
-            <div className="analysis-chip">
-              <span>Urgency</span>
-              <strong>{analysis.urgency}</strong>
-            </div>
+
             <p className="analysis-summary">{analysis.ai_summary}</p>
+
+            {analysis.duplicate_of ? (
+              <div className="form-message">
+                Possible duplicate of complaint #{analysis.duplicate_of}
+                {analysis.similarity_score !== null &&
+                analysis.similarity_score !== undefined
+                  ? ` (score: ${analysis.similarity_score})`
+                  : ""}
+              </div>
+            ) : (
+              <div className="form-message">
+                No strong duplicate match found.
+              </div>
+            )}
           </div>
         ) : (
           <p className="empty-state">
-            Type a location or click the map to sync the address. AI analysis runs
-            automatically when you submit the complaint.
+            Type a location or click the map to sync the address.
+            AI analysis runs automatically when you submit the complaint.
           </p>
         )}
 
         {message ? (
           <p
             className={`form-message ${
-              message.toLowerCase().includes("failed") || message.toLowerCase().includes("required")
-                ? "form-message--error"
-                : ""
+              hasErrorMessage ? "form-message--error" : ""
             }`.trim()}
           >
             {message}

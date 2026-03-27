@@ -1,11 +1,12 @@
 const GOOGLE_MAPS_API_KEY =
-  import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "AIzaSyAED8PQOpKOu5WuwLYDjyWiMp5qZvAAxJk";
+  import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || "";
 
 const GEOCODE_CACHE_KEY = "civiclens:geocode-cache";
 const REVERSE_GEOCODE_CACHE_KEY = "civiclens:reverse-geocode-cache";
+const DEFAULT_REVERSE_GEOCODE_NAME = "Selected Location";
+
 const geocodeMemoryCache = new Map();
 const reverseGeocodeMemoryCache = new Map();
-const DEFAULT_REVERSE_GEOCODE_NAME = "Selected Location";
 
 function readCache(cacheKey) {
   if (typeof window === "undefined") {
@@ -65,6 +66,12 @@ function getFormattedAddress(results, fallbackName = DEFAULT_REVERSE_GEOCODE_NAM
 }
 
 async function requestGeocode(params) {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Missing VITE_GOOGLE_MAPS_API_KEY in frontend environment.");
+  }
+
+  params.set("key", GOOGLE_MAPS_API_KEY);
+
   const response = await fetch(
     `https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`
   );
@@ -99,7 +106,6 @@ export async function getCoordinates(location) {
   const params = new URLSearchParams({
     address: trimmedLocation,
     components: "country:IN",
-    key: GOOGLE_MAPS_API_KEY,
   });
 
   const payload = await requestGeocode(params);
@@ -122,7 +128,11 @@ export async function getCoordinates(location) {
   return coordinates;
 }
 
-export async function reverseGeocode(lat, lng, fallbackName = DEFAULT_REVERSE_GEOCODE_NAME) {
+export async function reverseGeocode(
+  lat,
+  lng,
+  fallbackName = DEFAULT_REVERSE_GEOCODE_NAME
+) {
   if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
     throw new Error("Valid coordinates are required.");
   }
@@ -142,7 +152,6 @@ export async function reverseGeocode(lat, lng, fallbackName = DEFAULT_REVERSE_GE
 
   const params = new URLSearchParams({
     latlng: `${lat},${lng}`,
-    key: GOOGLE_MAPS_API_KEY,
   });
 
   try {

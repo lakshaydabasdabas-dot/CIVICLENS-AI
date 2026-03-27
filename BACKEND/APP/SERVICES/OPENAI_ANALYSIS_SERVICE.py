@@ -1,354 +1,171 @@
 """
-OPENAI ANALYSIS SERVICE
+ANALYSIS SERVICE
 
-Structured complaint analysis using the OpenAI Responses API.
-This replaces the legacy dataset/rule classifier in the request path while
-keeping a small deterministic fallback for local development and API failures.
+NOTE:
+The file name is retained for compatibility with the existing codebase,
+but this version is a modular civic complaint analysis pipeline.
+
+It performs:
+- rule-based category classification
+- urgency classification
+- department routing
+- summary generation
+- confidence scoring
 """
 
 from __future__ import annotations
 
-import json
-from typing import Any
+import re
+from typing import Dict
 
-import httpx
+from APP.SERVICES.ROUTING_SERVICE import route_department
+from APP.SERVICES.SUMMARIZATION_SERVICE import build_complaint_summary
 
-from APP.CORE.CONFIG import settings
 
-
-ALLOWED_CATEGORIES = (
-    "ELECTRICITY",
-    "WATER_SUPPLY",
-    "SEWAGE",
-    "ROADS",
-    "SANITATION",
-    "TRAFFIC",
-    "GENERAL_ADMINISTRATION",
-)
-
-ALLOWED_URGENCY = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
-
-CATEGORY_TO_DEPARTMENT = {
-    "ELECTRICITY": "ELECTRICAL_MAINTENANCE",
-    "WATER_SUPPLY": "WATER_SERVICES",
-    "SEWAGE": "SEWAGE_AND_DRAINAGE",
-    "ROADS": "ROAD_MAINTENANCE",
-    "SANITATION": "SANITATION_TEAM",
-    "TRAFFIC": "TRAFFIC_MANAGEMENT",
-    "GENERAL_ADMINISTRATION": "GENERAL_ADMINISTRATION",
-}
-
-SEWAGE_KEYWORDS = (
-    "sewage",
-    "sewer",
-    "drain",
-    "drainage",
-    "manhole",
-    "gutter",
-    "wastewater",
-    "waste water",
-    "septic",
-    "blocked drain",
-    "overflowing drain",
-)
-
-SYSTEM_PROMPT = """
-You are the complaint triage engine for CivicLens AI.
-
-Classify each civic complaint into exactly one category from this fixed list:
-- ELECTRICITY
-- WATER_SUPPLY
-- SEWAGE
-- ROADS
-- SANITATION
-- TRAFFIC
-- GENERAL_ADMINISTRATION
-
-Urgency must be exactly one of:
-- LOW
-- MEDIUM
-- HIGH
-- CRITICAL
-
-Hard classification rules:
-- Any complaint about sewage, sewer lines, drainage blockage, manholes, wastewater, gutters, or drain overflow MUST be SEWAGE.
-- Sewage-related complaints MUST NEVER be GENERAL_ADMINISTRATION.
-- Use GENERAL_ADMINISTRATION only when the complaint clearly does not fit any other allowed category.
-- Return concise operational language, not a conversation.
-
-Return strict JSON only and follow the schema exactly.
-""".strip()
-
-ANALYSIS_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "category": {
-            "type": "string",
-            "enum": list(ALLOWED_CATEGORIES),
-        },
-        "urgency": {
-            "type": "string",
-            "enum": list(ALLOWED_URGENCY),
-        },
-        "ai_summary": {
-            "type": "string",
-        },
-    },
-    "required": ["category", "urgency", "ai_summary"],
+CATEGORY_RULES = {
+    "WATER_SUPPLY": [
+        "water supply", "no water", "water shortage", "water leakage",
+        "water pipe", "pipeline", "dirty water", "drinking water"
+    ],
+    "SEWAGE": [
+        "sewage", "sewer", "gutter overflow", "sewer overflow",
+        "septic", "dirty drain water"
+    ],
+    "DRAINAGE": [
+        "drainage", "drain", "waterlogging", "water logging",
+        "stagnant water", "flooded road"
+    ],
+    "ROADS": [
+        "road broken", "pothole", "potholes", "damaged road",
+        "road damage", "road crack", "broken street"
+    ],
+    "STREETLIGHTS": [
+        "streetlight", "street light", "light not working",
+        "dark street", "pole light", "electric pole light"
+    ],
+    "WASTE_MANAGEMENT": [
+        "garbage", "trash", "waste", "dump", "overflowing bin",
+        "bin full", "litter", "solid waste"
+    ],
+    "SANITATION": [
+        "unclean", "dirty street", "cleaning issue", "sanitation",
+        "hygiene issue", "public toilet dirty"
+    ],
+    "ENCROACHMENT": [
+        "encroachment", "illegal occupation", "illegal parking blockage",
+        "footpath blocked", "road blocked by shops"
+    ],
+    "PARKS_PUBLIC_SPACES": [
+        "park damaged", "public park", "playground damaged",
+        "broken bench", "public space maintenance"
+    ],
+    "ANIMAL_CONTROL": [
+        "stray dog", "dog bite", "stray cattle", "animal nuisance",
+        "monkey issue", "dead animal"
+    ],
+    "PUBLIC_SAFETY": [
+        "dangerous", "accident risk", "unsafe", "open wire",
+        "open manhole", "fire risk", "collapse risk"
+    ],
 }
 
 
-def analyzeComplaint(text: str) -> dict[str, str]:
-    """
-    Analyze complaint text and return a normalized structured result.
-    """
+HIGH_URGENCY_KEYWORDS = {
+    "urgent", "emergency", "immediately", "dangerous", "unsafe",
+    "accident", "flooded", "overflow", "fire", "injury", "open manhole",
+    "electrocution", "severe", "critical"
+}
 
-    normalized_text = " ".join((text or "").split())
-
-    if not normalized_text:
-        raise ValueError("Complaint text is required.")
-
-    try:
-        if settings.OPENAI_API_KEY:
-            model_result = _analyze_with_openai(normalized_text)
-        else:
-            model_result = _fallback_analysis(normalized_text)
-    except Exception as error:
-        print(f"[OPENAI ANALYSIS SERVICE] Falling back after error: {error}")
-        model_result = _fallback_analysis(normalized_text)
-
-    return _normalize_analysis(normalized_text, model_result)
+MEDIUM_URGENCY_KEYWORDS = {
+    "soon", "issue", "problem", "damaged", "broken", "not working",
+    "overflowing", "blocked", "dirty"
+}
 
 
-def _analyze_with_openai(text: str) -> dict[str, Any]:
-    response = httpx.post(
-        "https://api.openai.com/v1/responses",
-        headers={
-            "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": settings.OPENAI_MODEL,
-            "instructions": SYSTEM_PROMPT,
-            "input": text,
-            "max_output_tokens": 250,
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": "civiclens_complaint_analysis",
-                    "strict": True,
-                    "schema": ANALYSIS_SCHEMA,
-                }
-            },
-        },
-        timeout=settings.OPENAI_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    output_text = _extract_output_text(payload)
-    return json.loads(output_text)
+def _normalize_text(text: str) -> str:
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text
 
 
-def _extract_output_text(payload: dict[str, Any]) -> str:
-    direct_output_text = payload.get("output_text")
-
-    if isinstance(direct_output_text, str) and direct_output_text.strip():
-        return direct_output_text
-
-    for item in payload.get("output", []):
-        for content in item.get("content", []):
-            if content.get("type") == "refusal":
-                raise ValueError(content.get("refusal") or "Model refused the request.")
-
-            if content.get("type") == "output_text":
-                text = content.get("text", "").strip()
-
-                if text:
-                    return text
-
-    raise ValueError("No structured output returned by OpenAI.")
+def _keyword_hits(text: str, keywords: list[str]) -> int:
+    score = 0
+    for keyword in keywords:
+        if keyword in text:
+            score += 1
+    return score
 
 
-def _normalize_analysis(text: str, raw_analysis: dict[str, Any]) -> dict[str, str]:
-    keyword_category = _keyword_category(text)
-    category = str(raw_analysis.get("category") or "").upper()
-    urgency = str(raw_analysis.get("urgency") or "").upper()
+def classify_category(text: str) -> str:
+    normalized = _normalize_text(text)
 
-    if category not in ALLOWED_CATEGORIES:
-        category = keyword_category
+    best_category = "OTHER"
+    best_score = 0
 
-    if keyword_category == "SEWAGE":
-        category = "SEWAGE"
+    for category, keywords in CATEGORY_RULES.items():
+        hits = _keyword_hits(normalized, keywords)
+        if hits > best_score:
+            best_score = hits
+            best_category = category
 
-    if category == "GENERAL_ADMINISTRATION" and keyword_category != "GENERAL_ADMINISTRATION":
-        category = keyword_category
-
-    if urgency not in ALLOWED_URGENCY:
-        urgency = _keyword_urgency(text)
-
-    ai_summary = str(raw_analysis.get("ai_summary") or "").strip()
-
-    if not ai_summary:
-        ai_summary = _build_summary(category, urgency)
-
-    return {
-        "category": category,
-        "urgency": urgency,
-        "department": CATEGORY_TO_DEPARTMENT[category],
-        "ai_summary": ai_summary,
-    }
+    return best_category
 
 
-def _fallback_analysis(text: str) -> dict[str, str]:
-    category = _keyword_category(text)
-    urgency = _keyword_urgency(text)
+def classify_urgency(text: str, category: str) -> str:
+    normalized = _normalize_text(text)
 
-    return {
-        "category": category,
-        "urgency": urgency,
-        "ai_summary": _build_summary(category, urgency),
-    }
+    high_hits = sum(1 for keyword in HIGH_URGENCY_KEYWORDS if keyword in normalized)
+    medium_hits = sum(1 for keyword in MEDIUM_URGENCY_KEYWORDS if keyword in normalized)
 
-
-def _keyword_category(text: str) -> str:
-    lowered_text = text.lower()
-
-    ordered_rules = (
-        ("SEWAGE", SEWAGE_KEYWORDS),
-        (
-            "ELECTRICITY",
-            (
-                "electricity",
-                "power",
-                "streetlight",
-                "street light",
-                "transformer",
-                "voltage",
-                "wire",
-                "electric",
-                "outage",
-                "blackout",
-            ),
-        ),
-        (
-            "WATER_SUPPLY",
-            (
-                "water supply",
-                "no water",
-                "water shortage",
-                "low pressure",
-                "tap water",
-                "pipeline leak",
-                "water pipeline",
-                "drinking water",
-                "water connection",
-                "tanker",
-                "borewell",
-            ),
-        ),
-        (
-            "ROADS",
-            (
-                "road",
-                "pothole",
-                "footpath",
-                "sidewalk",
-                "street surface",
-                "carriageway",
-                "speed breaker",
-                "road repair",
-            ),
-        ),
-        (
-            "SANITATION",
-            (
-                "garbage",
-                "trash",
-                "waste collection",
-                "unclean",
-                "dirty",
-                "cleaning",
-                "sweeping",
-                "bin",
-                "litter",
-                "public toilet",
-                "sanitation",
-            ),
-        ),
-        (
-            "TRAFFIC",
-            (
-                "traffic",
-                "signal",
-                "parking",
-                "congestion",
-                "jam",
-                "intersection",
-                "vehicle movement",
-                "traffic light",
-            ),
-        ),
-    )
-
-    for category, keywords in ordered_rules:
-        if any(keyword in lowered_text for keyword in keywords):
-            return category
-
-    return "GENERAL_ADMINISTRATION"
-
-
-def _keyword_urgency(text: str) -> str:
-    lowered_text = text.lower()
-
-    if any(
-        keyword in lowered_text
-        for keyword in (
-            "electrocution",
-            "live wire",
-            "fire",
-            "accident",
-            "collapsed",
-            "burst sewer",
-            "major overflow",
-            "emergency",
-        )
-    ):
-        return "CRITICAL"
-
-    if any(
-        keyword in lowered_text
-        for keyword in (
-            "power outage",
-            "no water",
-            "blocked drain",
-            "overflow",
-            "unsafe",
-            "deep pothole",
-            "traffic signal not working",
-            "severe",
-        )
-    ):
+    if category in {"PUBLIC_SAFETY", "SEWAGE", "DRAINAGE"} and medium_hits >= 1:
         return "HIGH"
 
-    if any(
-        keyword in lowered_text
-        for keyword in (
-            "not working",
-            "problem",
-            "issue",
-            "repair",
-            "maintenance",
-            "delay",
-        )
-    ):
+    if high_hits >= 1:
+        return "HIGH"
+    if medium_hits >= 2:
+        return "MEDIUM"
+    if medium_hits == 1:
+        return "MEDIUM"
+
+    if category in {"ROADS", "STREETLIGHTS", "WATER_SUPPLY", "WASTE_MANAGEMENT"}:
         return "MEDIUM"
 
     return "LOW"
 
 
-def _build_summary(category: str, urgency: str) -> str:
-    return (
-        f"Complaint classified as {category} with {urgency} urgency and routed "
-        f"to {CATEGORY_TO_DEPARTMENT[category]}."
+def estimate_confidence(text: str, category: str) -> float:
+    normalized = _normalize_text(text)
+
+    if category == "OTHER":
+        return 0.55
+
+    keyword_count = len(normalized.split())
+    if keyword_count >= 20:
+        return 0.86
+    if keyword_count >= 10:
+        return 0.78
+    return 0.68
+
+
+def analyzeComplaint(text: str) -> Dict[str, object]:
+    category = classify_category(text)
+    urgency = classify_urgency(text, category)
+    department = route_department(category)
+    ai_summary = build_complaint_summary(
+        title="Complaint Report",
+        description=text,
+        location=None,
+        category=category,
+        urgency=urgency,
+        department=department,
     )
+    model_confidence = estimate_confidence(text, category)
+
+    return {
+        "category": category,
+        "urgency": urgency,
+        "department": department,
+        "ai_summary": ai_summary,
+        "model_confidence": model_confidence,
+    }
