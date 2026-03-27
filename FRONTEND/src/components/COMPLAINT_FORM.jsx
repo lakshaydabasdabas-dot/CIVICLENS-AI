@@ -1,239 +1,301 @@
 import { useState } from "react";
-import MagneticButton from "./MagneticButton";
-import LocationPickerMap from "./LocationPickerMap.jsx";
-import SkeletonBlock from "./SkeletonBlock";
-import { createComplaint } from "../services/API.js";
 import { useComplaints } from "../context/useComplaints.js";
-import { useComplaintLocation } from "../hooks/useComplaintLocation.js";
+import { getCoordinates } from "../utils/geocode.js";
+import LocationPickerMap from "./LocationPickerMap.jsx";
 
-function AnalysisChip({ label, value }) {
+function StatPill({ label, value }) {
   return (
-    <div className="analysis-chip">
-      <span>{label}</span>
-      <strong>{value || "N/A"}</strong>
+    <div
+      style={{
+        padding: "0.85rem 0.95rem",
+        borderRadius: "16px",
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      <div style={{ fontSize: "0.82rem", opacity: 0.72 }}>{label}</div>
+      <div style={{ marginTop: "0.28rem", fontWeight: 700 }}>
+        {value ?? "N/A"}
+      </div>
     </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label style={{ display: "grid", gap: "0.48rem" }}>
+      <span style={{ fontSize: "0.96rem", fontWeight: 700 }}>{label}</span>
+      {children}
+    </label>
   );
 }
 
 function ComplaintForm() {
   const { addComplaint } = useComplaints();
-  const {
-    locationInput,
-    locationState,
-    locationError,
-    isResolvingLocation,
-    updateLocationInput,
-    selectLocationFromMap,
-    resolveLocation,
-    resetLocation,
-  } = useComplaintLocation();
 
+  const [submittedBy, setSubmittedBy] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [analysis, setAnalysis] = useState(null);
+  const [locationInput, setLocationInput] = useState("");
+  const [selectedCoordinates, setSelectedCoordinates] = useState(null);
+
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [latestComplaint, setLatestComplaint] = useState(null);
+
+  const handleMapLocationSelect = ({ name, lat, lng }) => {
+    setLocationInput(name);
+    setSelectedCoordinates({ lat, lng, name });
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setIsSubmitting(true);
-    setIsAnalyzing(true);
+    setSubmitting(true);
     setMessage("");
+    setLatestComplaint(null);
 
     try {
-      if (!title.trim() || !description.trim()) {
-        throw new Error("Title and description are required.");
+      if (!title.trim() || !description.trim() || !locationInput.trim()) {
+        throw new Error("Please fill title, description, and location.");
       }
 
-      const resolvedLocation = await resolveLocation();
+      let resolvedLocation = selectedCoordinates;
 
-      const response = await createComplaint({
+      if (
+        !resolvedLocation ||
+        !Number.isFinite(Number(resolvedLocation.lat)) ||
+        !Number.isFinite(Number(resolvedLocation.lng))
+      ) {
+        resolvedLocation = await getCoordinates(locationInput.trim());
+      }
+
+      const complaint = await addComplaint({
         title: title.trim(),
         description: description.trim(),
-        location: resolvedLocation.name,
+        location: resolvedLocation.name || locationInput.trim(),
         lat: resolvedLocation.lat,
         lng: resolvedLocation.lng,
-        submitted_by: "Lakshay",
+        submitted_by: submittedBy.trim() || "anonymous_user",
       });
 
-      const complaint = response.data;
-
-      setAnalysis({
-        category: complaint.category,
-        department: complaint.department,
-        urgency: complaint.urgency,
-        priority_score: complaint.priority_score,
-        ai_summary: complaint.ai_summary,
-        region: complaint.region,
-        locality: complaint.locality,
-        duplicate_of: complaint.duplicate_of,
-        similarity_score: complaint.similarity_score,
-      });
-
-      addComplaint(complaint);
+      setLatestComplaint(complaint);
       setMessage("Complaint submitted successfully.");
-
       setTitle("");
       setDescription("");
-      resetLocation();
-    } catch (error) {
-      console.error(error);
-      setMessage(
-        error.response?.data?.detail ||
-          error.response?.data?.message ||
-          error.message ||
-          "Failed to submit complaint."
-      );
+      setLocationInput("");
+      setSelectedCoordinates(null);
+    } catch (err) {
+      console.error(err);
+      setMessage(err.message || "Failed to submit complaint.");
     } finally {
-      setIsAnalyzing(false);
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  const hasErrorMessage =
-    message.toLowerCase().includes("failed") ||
-    message.toLowerCase().includes("required") ||
-    message.toLowerCase().includes("invalid");
+  const isError =
+    message.toLowerCase().includes("fail") ||
+    message.toLowerCase().includes("please") ||
+    message.toLowerCase().includes("required");
 
   return (
-    <div className="complaint-form-layout">
-      <form className="glass-panel reveal-in" onSubmit={handleSubmit}>
-        <div className="form-header">
-          <span className="section-kicker">Complaint details</span>
-          <h2>Register a civic grievance</h2>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1.08fr 0.92fr",
+        gap: "1.25rem",
+        alignItems: "start",
+      }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "grid",
+          gap: "1rem",
+          padding: "1.35rem",
+          borderRadius: "26px",
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 14px 36px rgba(0,0,0,0.18)",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "0.88rem", opacity: 0.78 }}>Complaint details</div>
+          <h2 style={{ margin: "0.35rem 0 0" }}>Register a grievance</h2>
         </div>
 
-        <div className="field-group">
-          <label className="field-label" htmlFor="complaint-title">
-            Complaint title
-          </label>
+        <Field label="Username">
           <input
-            id="complaint-title"
-            className="field-input"
+            value={submittedBy}
+            onChange={(e) => setSubmittedBy(e.target.value)}
+            placeholder="Enter your username"
+            style={inputStyle}
+          />
+        </Field>
+
+        <Field label="Complaint title">
+          <input
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Example: Streetlight outage near Rohini sector road"
-            required
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Example: Electricity outage in Rohini Sector 9"
+            style={inputStyle}
           />
-        </div>
+        </Field>
 
-        <div className="field-group">
-          <label className="field-label" htmlFor="complaint-description">
-            Description
-          </label>
+        <Field label="Complaint description">
           <textarea
-            id="complaint-description"
-            className="field-input"
-            rows={6}
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Describe the issue with enough context for triage, routing, and duplicate detection."
-            required
+            onChange={(e) => setDescription(e.target.value)}
+            rows={6}
+            placeholder="Describe the issue clearly, including urgency and what is happening on ground."
+            style={{ ...inputStyle, resize: "vertical", minHeight: "140px" }}
           />
-        </div>
+        </Field>
 
-        <div className="field-group">
-          <label className="field-label" htmlFor="complaint-location">
-            Location
-          </label>
+        <Field label="Location">
           <input
-            id="complaint-location"
-            className="field-input"
             value={locationInput}
-            onChange={(event) => updateLocationInput(event.target.value)}
-            onBlur={() => {
-              if (locationInput.trim()) {
-                void resolveLocation().catch(() => {});
-              }
-            }}
-            placeholder="Locality, ward, road, colony, or public service area"
-            required
+            onChange={(e) => setLocationInput(e.target.value)}
+            placeholder="Example: Rohini Sector 9, Delhi"
+            style={inputStyle}
           />
-          {locationError ? (
-            <p className="form-message form-message--error">{locationError}</p>
-          ) : null}
-        </div>
-
-        <div className="form-actions">
-          <MagneticButton
-            variant="primary"
-            type="submit"
-            magnetic={!isSubmitting}
-            disabled={isSubmitting || isResolvingLocation}
-          >
-            {isSubmitting ? "Submitting..." : "Submit Complaint"}
-          </MagneticButton>
-        </div>
-      </form>
-
-      <div className="analysis-panel glass-panel reveal-in">
-        <div className="analysis-panel__header">
-          <span className="section-kicker">AI preview</span>
-          <h2>Analysis output</h2>
-        </div>
+        </Field>
 
         <LocationPickerMap
-          selectedLocation={locationState}
-          onLocationSelect={selectLocationFromMap}
+          selectedLocation={selectedCoordinates}
+          onLocationSelect={handleMapLocationSelect}
         />
 
-        {isAnalyzing ? (
-          <div className="skeleton-stack">
-            <SkeletonBlock className="skeleton-line skeleton-line--long" />
-            <SkeletonBlock className="skeleton-line skeleton-line--short" />
-            <SkeletonBlock className="skeleton-card" />
-            <SkeletonBlock className="skeleton-card" />
-          </div>
-        ) : analysis ? (
-          <div className="analysis-results">
-            <div className="analysis-results__grid">
-              <AnalysisChip label="Category" value={analysis.category} />
-              <AnalysisChip label="Department" value={analysis.department} />
-              <AnalysisChip label="Urgency" value={analysis.urgency} />
-              <AnalysisChip
-                label="Priority score"
-                value={analysis.priority_score}
-              />
-              <AnalysisChip label="Region" value={analysis.region} />
-              <AnalysisChip label="Locality" value={analysis.locality} />
-            </div>
-
-            <p className="analysis-summary">{analysis.ai_summary}</p>
-
-            {analysis.duplicate_of ? (
-              <div className="form-message">
-                Possible duplicate of complaint #{analysis.duplicate_of}
-                {analysis.similarity_score !== null &&
-                analysis.similarity_score !== undefined
-                  ? ` (score: ${analysis.similarity_score})`
-                  : ""}
-              </div>
-            ) : (
-              <div className="form-message">
-                No strong duplicate match found.
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="empty-state">
-            Type a location or click the map to sync the address.
-            AI analysis runs automatically when you submit the complaint.
-          </p>
-        )}
+        <button
+          type="submit"
+          disabled={submitting}
+          style={{
+            padding: "1rem 1.15rem",
+            borderRadius: "16px",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: 800,
+            fontSize: "0.98rem",
+            background: "#f8fafc",
+            color: "#0f172a",
+            boxShadow: "0 10px 26px rgba(0,0,0,0.2)",
+          }}
+        >
+          {submitting ? "Submitting..." : "Submit Complaint"}
+        </button>
 
         {message ? (
-          <p
-            className={`form-message ${
-              hasErrorMessage ? "form-message--error" : ""
-            }`.trim()}
+          <div
+            style={{
+              padding: "0.95rem 1rem",
+              borderRadius: "14px",
+              background: isError
+                ? "rgba(239,68,68,0.12)"
+                : "rgba(34,197,94,0.12)",
+              border: isError
+                ? "1px solid rgba(239,68,68,0.24)"
+                : "1px solid rgba(34,197,94,0.24)",
+            }}
           >
             {message}
-          </p>
+          </div>
         ) : null}
-      </div>
+      </form>
+
+      <section
+        style={{
+          display: "grid",
+          gap: "1rem",
+          padding: "1.35rem",
+          borderRadius: "26px",
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 14px 36px rgba(0,0,0,0.18)",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "0.88rem", opacity: 0.78 }}>AI intake preview</div>
+          <h2 style={{ margin: "0.35rem 0 0" }}>Latest complaint intelligence</h2>
+        </div>
+
+        {latestComplaint ? (
+          <>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.8rem",
+              }}
+            >
+              <StatPill label="Complaint ID" value={latestComplaint.id} />
+              <StatPill label="Category" value={latestComplaint.category} />
+              <StatPill label="Urgency" value={latestComplaint.urgency} />
+              <StatPill label="Priority Score" value={latestComplaint.priority_score} />
+              <StatPill label="Department" value={latestComplaint.department} />
+              <StatPill label="Locality" value={latestComplaint.locality} />
+              <StatPill label="Region" value={latestComplaint.region} />
+              <StatPill label="Duplicate Of" value={latestComplaint.duplicate_of} />
+            </div>
+
+            <div
+              style={{
+                padding: "1rem",
+                borderRadius: "18px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
+              <div style={{ fontSize: "0.86rem", opacity: 0.74, marginBottom: "0.45rem" }}>
+                AI Summary
+              </div>
+              <div style={{ lineHeight: 1.75 }}>
+                {latestComplaint.ai_summary || "No summary available."}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div
+            style={{
+              padding: "1rem",
+              borderRadius: "18px",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              lineHeight: 1.75,
+              opacity: 0.86,
+            }}
+          >
+            Once a complaint is submitted, this panel will show the generated category,
+            urgency, priority, routing department, duplicate signal, and location
+            intelligence.
+          </div>
+        )}
+
+        <div
+          style={{
+            padding: "1rem",
+            borderRadius: "18px",
+            background: "linear-gradient(135deg, rgba(96,165,250,0.12), rgba(34,197,94,0.08))",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>Why this matters</h3>
+          <p style={{ margin: 0, lineHeight: 1.75, opacity: 0.9 }}>
+            Good complaint intake is the foundation of the whole system. A cleaner
+            and more professional submission flow improves trust, demo quality, and
+            the quality of downstream classification, clustering, and routing.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
+
+const inputStyle = {
+  padding: "0.92rem 1rem",
+  borderRadius: "14px",
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.06)",
+  color: "inherit",
+  fontSize: "0.97rem",
+};
 
 export default ComplaintForm;

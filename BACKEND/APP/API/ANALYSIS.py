@@ -1,7 +1,3 @@
-"""
-ANALYSIS API ROUTES
-"""
-
 from __future__ import annotations
 
 from typing import Optional
@@ -14,7 +10,6 @@ from APP.CORE.DATABASE import get_db
 from APP.SERVICES.DUPLICATE_SERVICE import find_possible_duplicate
 from APP.SERVICES.LOCATION_INTELLIGENCE_SERVICE import build_location_intelligence
 from APP.SERVICES.OPENAI_ANALYSIS_SERVICE import analyzeComplaint
-from APP.SERVICES.PREPROCESS_SERVICE import clean_text
 from APP.SERVICES.PRIORITY_SERVICE import compute_priority_score, priority_band
 
 router = APIRouter()
@@ -30,9 +25,6 @@ class AnalysisRequest(BaseModel):
 
 @router.post("/")
 def analyze_complaint(payload: AnalysisRequest, db: Session = Depends(get_db)):
-    combined_text = f"{payload.title} {payload.description}".strip()
-    cleaned_text = clean_text(combined_text)
-
     analysis_input = (
         f"Title: {payload.title}\n"
         f"Description: {payload.description}\n"
@@ -62,12 +54,12 @@ def analyze_complaint(payload: AnalysisRequest, db: Session = Depends(get_db)):
         "location": payload.location,
         "lat": payload.lat,
         "lng": payload.lng,
-        "cleaned_text": cleaned_text,
         "category": analysis["category"],
         "urgency": analysis["urgency"],
         "priority_score": score,
         "priority_band": priority_band(score),
         "department": analysis["department"],
+        "target_agency": analysis.get("target_agency"),
         "ai_summary": analysis["ai_summary"],
         "model_confidence": analysis.get("model_confidence", 0.75),
         "location_intelligence": location_intelligence,

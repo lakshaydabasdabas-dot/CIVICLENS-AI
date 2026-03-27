@@ -32,6 +32,7 @@ function HotspotLegend() {
       <LegendDot color="#f59e0b" label="Medium urgency marker" />
       <LegendDot color="#22c55e" label="Low urgency marker" />
       <LegendDot color="#60a5fa" label="Duplicate-linked complaint" />
+      <LegendDot color="#7c3aed" label="Heatmap hotspot zone" />
     </div>
   );
 }

@@ -1,89 +1,172 @@
-"""
-ANALYSIS SERVICE
-
-NOTE:
-The file name is retained for compatibility with the existing codebase,
-but this version is a modular civic complaint analysis pipeline.
-
-It performs:
-- rule-based category classification
-- urgency classification
-- department routing
-- summary generation
-- confidence scoring
-"""
-
 from __future__ import annotations
 
 import re
 from typing import Dict
 
-from APP.SERVICES.ROUTING_SERVICE import route_department
+from APP.SERVICES.ROUTING_SERVICE import route_agency_from_department, route_department
 from APP.SERVICES.SUMMARIZATION_SERVICE import build_complaint_summary
 
 
 CATEGORY_RULES = {
-    "WATER_SUPPLY": [
-        "water supply", "no water", "water shortage", "water leakage",
-        "water pipe", "pipeline", "dirty water", "drinking water"
-    ],
-    "SEWAGE": [
-        "sewage", "sewer", "gutter overflow", "sewer overflow",
-        "septic", "dirty drain water"
-    ],
-    "DRAINAGE": [
-        "drainage", "drain", "waterlogging", "water logging",
-        "stagnant water", "flooded road"
-    ],
-    "ROADS": [
-        "road broken", "pothole", "potholes", "damaged road",
-        "road damage", "road crack", "broken street"
+    "ELECTRICAL": [
+        "electricity",
+        "electric",
+        "power cut",
+        "power outage",
+        "no power",
+        "no electricity",
+        "transformer",
+        "short circuit",
+        "wire sparking",
+        "sparking wire",
+        "electric fault",
+        "feeder problem",
+        "voltage issue",
+        "electric pole",
+        "live wire",
     ],
     "STREETLIGHTS": [
-        "streetlight", "street light", "light not working",
-        "dark street", "pole light", "electric pole light"
+        "streetlight",
+        "street light",
+        "streetlights",
+        "street lights",
+        "light not working",
+        "pole light",
+        "dark street",
+        "street lamp",
+        "lamp post",
+    ],
+    "WATER_SUPPLY": [
+        "water supply",
+        "no water",
+        "water shortage",
+        "water leakage",
+        "water leak",
+        "water pipe",
+        "pipeline",
+        "dirty water",
+        "drinking water",
+        "water tank",
+    ],
+    "SEWAGE": [
+        "sewage",
+        "sewer",
+        "sewer overflow",
+        "gutter overflow",
+        "dirty drain water",
+        "septic",
+        "sewer blockage",
+    ],
+    "DRAINAGE": [
+        "drainage",
+        "drain",
+        "waterlogging",
+        "water logging",
+        "stagnant water",
+        "flooded road",
+        "clogged drain",
+    ],
+    "ROADS": [
+        "road broken",
+        "broken road",
+        "pothole",
+        "potholes",
+        "damaged road",
+        "road damage",
+        "road crack",
+        "broken street",
+        "road cave in",
     ],
     "WASTE_MANAGEMENT": [
-        "garbage", "trash", "waste", "dump", "overflowing bin",
-        "bin full", "litter", "solid waste"
+        "garbage",
+        "trash",
+        "waste",
+        "dump",
+        "overflowing bin",
+        "bin full",
+        "litter",
+        "solid waste",
+        "garbage pile",
     ],
     "SANITATION": [
-        "unclean", "dirty street", "cleaning issue", "sanitation",
-        "hygiene issue", "public toilet dirty"
+        "dirty street",
+        "sanitation",
+        "cleaning issue",
+        "unclean",
+        "public toilet dirty",
+        "hygiene issue",
+        "unclean area",
     ],
     "ENCROACHMENT": [
-        "encroachment", "illegal occupation", "illegal parking blockage",
-        "footpath blocked", "road blocked by shops"
+        "encroachment",
+        "illegal occupation",
+        "footpath blocked",
+        "road blocked by shops",
+        "illegal parking blockage",
     ],
     "PARKS_PUBLIC_SPACES": [
-        "park damaged", "public park", "playground damaged",
-        "broken bench", "public space maintenance"
+        "park damaged",
+        "public park",
+        "playground damaged",
+        "broken bench",
+        "public space maintenance",
     ],
     "ANIMAL_CONTROL": [
-        "stray dog", "dog bite", "stray cattle", "animal nuisance",
-        "monkey issue", "dead animal"
+        "stray dog",
+        "dog bite",
+        "stray cattle",
+        "animal nuisance",
+        "monkey issue",
+        "dead animal",
     ],
     "PUBLIC_SAFETY": [
-        "dangerous", "accident risk", "unsafe", "open wire",
-        "open manhole", "fire risk", "collapse risk"
+        "dangerous",
+        "unsafe",
+        "accident risk",
+        "open manhole",
+        "fire risk",
+        "collapse risk",
+        "public hazard",
+        "risk to life",
     ],
 }
 
 
 HIGH_URGENCY_KEYWORDS = {
-    "urgent", "emergency", "immediately", "dangerous", "unsafe",
-    "accident", "flooded", "overflow", "fire", "injury", "open manhole",
-    "electrocution", "severe", "critical"
+    "urgent",
+    "emergency",
+    "immediately",
+    "dangerous",
+    "unsafe",
+    "accident",
+    "fire",
+    "injury",
+    "electrocution",
+    "critical",
+    "severe",
+    "live wire",
+    "sparking",
+    "overflowing",
+    "flooded",
+    "not working since night",
 }
 
 MEDIUM_URGENCY_KEYWORDS = {
-    "soon", "issue", "problem", "damaged", "broken", "not working",
-    "overflowing", "blocked", "dirty"
+    "not working",
+    "broken",
+    "issue",
+    "problem",
+    "blocked",
+    "dirty",
+    "leakage",
+    "dark",
+    "outage",
+    "overflow",
 }
 
 
 def _normalize_text(text: str) -> str:
-    text = text.lower().strip()
+    text = str(text or "").lower().strip()
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text
@@ -118,17 +201,30 @@ def classify_urgency(text: str, category: str) -> str:
     high_hits = sum(1 for keyword in HIGH_URGENCY_KEYWORDS if keyword in normalized)
     medium_hits = sum(1 for keyword in MEDIUM_URGENCY_KEYWORDS if keyword in normalized)
 
-    if category in {"PUBLIC_SAFETY", "SEWAGE", "DRAINAGE"} and medium_hits >= 1:
+    if category in {"PUBLIC_SAFETY", "ELECTRICAL", "SEWAGE", "DRAINAGE"} and (
+        high_hits >= 1 or medium_hits >= 1
+    ):
+        return "HIGH"
+
+    if category == "STREETLIGHTS" and ("dark street" in normalized or "unsafe" in normalized):
         return "HIGH"
 
     if high_hits >= 1:
         return "HIGH"
+
     if medium_hits >= 2:
         return "MEDIUM"
+
     if medium_hits == 1:
         return "MEDIUM"
 
-    if category in {"ROADS", "STREETLIGHTS", "WATER_SUPPLY", "WASTE_MANAGEMENT"}:
+    if category in {
+        "STREETLIGHTS",
+        "WATER_SUPPLY",
+        "ROADS",
+        "WASTE_MANAGEMENT",
+        "SANITATION",
+    }:
         return "MEDIUM"
 
     return "LOW"
@@ -138,20 +234,23 @@ def estimate_confidence(text: str, category: str) -> float:
     normalized = _normalize_text(text)
 
     if category == "OTHER":
-        return 0.55
+        return 0.54
 
-    keyword_count = len(normalized.split())
-    if keyword_count >= 20:
-        return 0.86
-    if keyword_count >= 10:
-        return 0.78
-    return 0.68
+    token_count = len(normalized.split())
+
+    if token_count >= 24:
+        return 0.89
+    if token_count >= 14:
+        return 0.80
+    return 0.71
 
 
 def analyzeComplaint(text: str) -> Dict[str, object]:
     category = classify_category(text)
     urgency = classify_urgency(text, category)
     department = route_department(category)
+    target_agency = route_agency_from_department(department)
+
     ai_summary = build_complaint_summary(
         title="Complaint Report",
         description=text,
@@ -160,12 +259,17 @@ def analyzeComplaint(text: str) -> Dict[str, object]:
         urgency=urgency,
         department=department,
     )
+
+    if target_agency:
+        ai_summary = f"{ai_summary} Likely forwarding agency: {target_agency}."
+
     model_confidence = estimate_confidence(text, category)
 
     return {
         "category": category,
         "urgency": urgency,
         "department": department,
+        "target_agency": target_agency,
         "ai_summary": ai_summary,
         "model_confidence": model_confidence,
     }

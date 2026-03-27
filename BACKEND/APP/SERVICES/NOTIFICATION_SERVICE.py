@@ -1,17 +1,11 @@
-"""
-NOTIFICATION SERVICE
-
-Prepares notification content for CivicLens AI.
-"""
-
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 from APP.SERVICES.EMAIL_SERVICE import send_email
 
 
-def build_complaint_submission_email(complaint: Dict[str, Any]) -> Dict[str, str]:
+def build_submission_email(complaint: Dict[str, Any]) -> Dict[str, str]:
     complaint_id = complaint.get("id", "N/A")
     title = complaint.get("title", "Complaint")
     location = complaint.get("location", "Location not provided")
@@ -21,50 +15,51 @@ def build_complaint_submission_email(complaint: Dict[str, Any]) -> Dict[str, str
 
     subject = f"CivicLens AI | Complaint #{complaint_id} submitted"
     body = (
-        f"Your complaint has been recorded in CivicLens AI.\n\n"
+        f"Your complaint has been successfully submitted.\n\n"
         f"Complaint ID: {complaint_id}\n"
         f"Title: {title}\n"
         f"Location: {location}\n"
         f"Category: {category}\n"
         f"Urgency: {urgency}\n"
-        f"Department: {department}\n\n"
-        f"We will keep you updated as the complaint status changes."
+        f"Department: {department}\n"
     )
 
     return {"subject": subject, "body": body}
 
 
-def build_status_update_email(complaint: Dict[str, Any]) -> Dict[str, str]:
+def build_status_email(complaint: Dict[str, Any]) -> Dict[str, str]:
     complaint_id = complaint.get("id", "N/A")
     title = complaint.get("title", "Complaint")
     status = complaint.get("status", "NEW")
+    priority_score = complaint.get("priority_score", "N/A")
 
-    subject = f"CivicLens AI | Complaint #{complaint_id} status updated"
+    subject = f"CivicLens AI | Complaint #{complaint_id} status update"
     body = (
         f"Your complaint status has been updated.\n\n"
         f"Complaint ID: {complaint_id}\n"
         f"Title: {title}\n"
         f"New Status: {status}\n"
+        f"Priority Score: {priority_score}\n"
     )
 
     return {"subject": subject, "body": body}
 
 
 def send_submission_notification(email: str, complaint: Dict[str, Any]) -> Dict[str, Any]:
-    message = build_complaint_submission_email(complaint)
+    email_content = build_submission_email(complaint)
     return send_email(
         to=[email],
-        subject=message["subject"],
-        body=message["body"],
-        metadata={"type": "complaint_submission"},
+        subject=email_content["subject"],
+        body=email_content["body"],
+        metadata={"type": "submission_notification"},
     )
 
 
 def send_status_notification(email: str, complaint: Dict[str, Any]) -> Dict[str, Any]:
-    message = build_status_update_email(complaint)
+    email_content = build_status_email(complaint)
     return send_email(
         to=[email],
-        subject=message["subject"],
-        body=message["body"],
-        metadata={"type": "status_update"},
+        subject=email_content["subject"],
+        body=email_content["body"],
+        metadata={"type": "status_notification"},
     )

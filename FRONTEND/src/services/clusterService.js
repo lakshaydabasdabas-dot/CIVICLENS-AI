@@ -1,7 +1,5 @@
 function normalizeText(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase();
+  return String(value || "").trim().toLowerCase();
 }
 
 export function applyComplaintFilters(complaints = [], filters = {}) {
@@ -90,9 +88,9 @@ export function buildPriorityBandSummary(complaints = []) {
     let band = "UNASSIGNED";
 
     if (Number.isFinite(score)) {
-      if (score >= 75) band = "CRITICAL";
-      else if (score >= 50) band = "HIGH";
-      else if (score >= 30) band = "MEDIUM";
+      if (score >= 80) band = "CRITICAL";
+      else if (score >= 55) band = "HIGH";
+      else if (score >= 32) band = "MEDIUM";
       else band = "LOW";
     }
 
@@ -147,6 +145,11 @@ export function buildLocalityHotspots(complaints = []) {
         (left, right) => right[1] - left[1]
       )[0]?.[0] || "UNASSIGNED";
 
+      const intensityScore =
+        entry.complaintCount * 10 +
+        entry.duplicateCount * 8 +
+        entry.highestPriority * 0.5;
+
       return {
         locality: entry.locality,
         region: entry.region,
@@ -155,14 +158,10 @@ export function buildLocalityHotspots(complaints = []) {
         highestPriority: entry.highestPriority,
         topCategory,
         topUrgency,
+        intensityScore: Number(intensityScore.toFixed(2)),
       };
     })
-    .sort((left, right) => {
-      if (right.complaintCount !== left.complaintCount) {
-        return right.complaintCount - left.complaintCount;
-      }
-      return right.highestPriority - left.highestPriority;
-    });
+    .sort((left, right) => right.intensityScore - left.intensityScore);
 }
 
 export function buildUniqueOptions(complaints = [], key, fallbackLabel) {

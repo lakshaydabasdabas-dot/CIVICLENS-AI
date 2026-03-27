@@ -1,16 +1,7 @@
-"""
-EMAIL SERVICE
-
-Current version:
-- prepares email payloads
-- supports console/debug mode
-- can later be connected to SMTP, SendGrid, Resend, etc.
-"""
-
 from __future__ import annotations
 
 import os
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 
 def email_enabled() -> bool:
@@ -52,7 +43,6 @@ def send_email(
         metadata=metadata,
     )
 
-    # Placeholder transport. Safe for development.
     print("CIVICLENS EMAIL DEBUG:", payload)
 
     return {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ComplaintsContext } from "./ComplaintsContext.js";
 import {
+  createComplaint as createComplaintRequest,
   getComplaints,
   getDashboardStats,
   updateComplaintStatus as updateComplaintStatusRequest,
@@ -78,48 +79,55 @@ function buildClientStats(complaints = []) {
 export function ComplaintsProvider({ children }) {
   const [complaints, setComplaints] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [filters, setFilters] = useState(INITIAL_FILTERS);
 
-  const loadData = useCallback(async ({ silent = false } = {}) => {
+  const refreshComplaints = useCallback(async ({ silent = false } = {}) => {
     if (silent) {
-      setIsRefreshing(true);
+      setRefreshing(true);
     } else {
-      setIsLoading(true);
+      setLoading(true);
     }
 
     setError("");
 
     try {
-      const [complaintsResponse, statsResponse] = await Promise.all([
+      const [complaintList, stats] = await Promise.all([
         getComplaints(),
-        getDashboardStats().catch(() => ({ data: null })),
+        getDashboardStats().catch(() => null),
       ]);
 
-      const complaintItems = Array.isArray(complaintsResponse.data)
-        ? complaintsResponse.data
-        : [];
-
-      setComplaints(complaintItems);
-      setDashboardStats(statsResponse.data || buildClientStats(complaintItems));
-    } catch (loadError) {
-      console.error(loadError);
-      setError(
-        loadError?.response?.data?.detail ||
-          loadError?.message ||
-          "Failed to load complaints."
-      );
+      const cleanComplaints = Array.isArray(complaintList) ? complaintList : [];
+      setComplaints(cleanComplaints);
+      setDashboardStats(stats || buildClientStats(cleanComplaints));
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Failed to load complaints.");
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    void refreshComplaints();
+  }, [refreshComplaints]);
+
+  const addComplaint = useCallback(async (payload) => {
+    const newComplaint = await createComplaintRequest(payload);
+    setComplaints((current) => [newComplaint, ...current]);
+    return newComplaint;
+  }, []);
+
+  const updateComplaintStatus = useCallback(async (id, status) => {
+    const updated = await updateComplaintStatusRequest(id, status);
+    setComplaints((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item))
+    );
+    return updated;
+  }, []);
 
   const filteredComplaints = useMemo(
     () => applyComplaintFilters(complaints, filters),
@@ -132,7 +140,7 @@ export function ComplaintsProvider({ children }) {
   );
 
   const hotspots = useMemo(
-    () => buildLocalityHotspots(filteredComplaints).slice(0, 8),
+    () => buildLocalityHotspots(filteredComplaints).slice(0, 10),
     [filteredComplaints]
   );
 
@@ -148,32 +156,6 @@ export function ComplaintsProvider({ children }) {
     [complaints]
   );
 
-  const refreshComplaints = useCallback(async () => {
-    await loadData({ silent: true });
-  }, [loadData]);
-
-  const addComplaint = useCallback((complaint) => {
-    setComplaints((currentComplaints) => [complaint, ...currentComplaints]);
-    setDashboardStats((currentStats) =>
-      currentStats
-        ? buildClientStats([complaint, ...complaints])
-        : currentStats
-    );
-  }, [complaints]);
-
-  const updateComplaintStatus = useCallback(async (complaintId, status) => {
-    const response = await updateComplaintStatusRequest(complaintId, status);
-    const updatedComplaint = response.data;
-
-    setComplaints((currentComplaints) =>
-      currentComplaints.map((complaint) =>
-        complaint.id === updatedComplaint.id ? updatedComplaint : complaint
-      )
-    );
-
-    return updatedComplaint;
-  }, []);
-
   const resetFilters = useCallback(() => {
     setFilters(INITIAL_FILTERS);
   }, []);
@@ -182,11 +164,11 @@ export function ComplaintsProvider({ children }) {
     () => ({
       complaints,
       filteredComplaints,
-      dashboardStats: dashboardStats || buildClientStats(complaints),
+      dashboardStats,
       filteredStats,
       hotspots,
-      isLoading,
-      isRefreshing,
+      loading,
+      refreshing,
       error,
       filters,
       setFilters,
@@ -202,8 +184,8 @@ export function ComplaintsProvider({ children }) {
       dashboardStats,
       filteredStats,
       hotspots,
-      isLoading,
-      isRefreshing,
+      loading,
+      refreshing,
       error,
       filters,
       resetFilters,

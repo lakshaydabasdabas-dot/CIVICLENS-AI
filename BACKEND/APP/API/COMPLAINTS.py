@@ -1,13 +1,9 @@
-"""
-COMPLAINT API ROUTES
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -16,12 +12,8 @@ from APP.MODELS.COMPLAINT import Complaint
 from APP.SCHEMAS.COMPLAINT_SCHEMA import ComplaintCreate, ComplaintResponse
 from APP.SERVICES.DUPLICATE_SERVICE import find_possible_duplicate
 from APP.SERVICES.LOCATION_INTELLIGENCE_SERVICE import build_location_intelligence
-from APP.SERVICES.NOTIFICATION_SERVICE import (
-    send_status_notification,
-    send_submission_notification,
-)
+from APP.SERVICES.NOTIFICATION_SERVICE import send_status_notification, send_submission_notification
 from APP.SERVICES.OPENAI_ANALYSIS_SERVICE import analyzeComplaint
-from APP.SERVICES.PREPROCESS_SERVICE import clean_text
 from APP.SERVICES.PRIORITY_SERVICE import compute_priority_score
 
 router = APIRouter()
@@ -29,14 +21,11 @@ router = APIRouter()
 
 class ComplaintStatusUpdate(BaseModel):
     status: str
-    notify_email: str | None = None
+    notify_email: Optional[str] = None
 
 
 @router.post("/", response_model=ComplaintResponse)
 def create_complaint(payload: ComplaintCreate, db: Session = Depends(get_db)):
-    combined_text = f"{payload.title} {payload.description}".strip()
-    cleaned_text = clean_text(combined_text)
-
     analysis_input = (
         f"Title: {payload.title}\n"
         f"Description: {payload.description}\n"
@@ -96,7 +85,6 @@ def create_complaint(payload: ComplaintCreate, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_complaint)
 
-    # Optional safe notification trigger
     if payload.submitted_by and "@" in payload.submitted_by:
         try:
             send_submission_notification(
@@ -117,9 +105,16 @@ def create_complaint(payload: ComplaintCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/", response_model=List[ComplaintResponse])
-def get_all_complaints(db: Session = Depends(get_db)):
-    complaints = db.query(Complaint).order_by(Complaint.created_at.desc()).all()
-    return complaints
+def get_all_complaints(
+    db: Session = Depends(get_db),
+    submitted_by: Optional[str] = Query(default=None),
+):
+    query = db.query(Complaint)
+
+    if submitted_by:
+        query = query.filter(Complaint.submitted_by == submitted_by.strip())
+
+    return query.order_by(Complaint.created_at.desc()).all()
 
 
 @router.get("/{complaint_id}", response_model=ComplaintResponse)
@@ -143,8 +138,8 @@ def update_complaint_status(
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
 
-    allowed_statuses = {"NEW", "IN_PROGRESS", "RESOLVED"}
     new_status = payload.status.strip().upper()
+    allowed_statuses = {"NEW", "IN_PROGRESS", "RESOLVED"}
 
     if new_status not in allowed_statuses:
         raise HTTPException(
@@ -168,6 +163,7 @@ def update_complaint_status(
                     "id": complaint.id,
                     "title": complaint.title,
                     "status": complaint.status,
+                    "priority_score": complaint.priority_score,
                 },
             )
         except Exception as exc:

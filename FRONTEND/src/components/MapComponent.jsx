@@ -2,78 +2,54 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GOOGLE_MAPS_API_KEY } from "../utils/geocode.js";
 
 const DELHI_CENTER = { lat: 28.6139, lng: 77.209 };
-const GOOGLE_MAPS_SCRIPT_ID = "civiclens-google-maps-script";
-let googleMapsLoaderPromise;
+const SCRIPT_ID = "civiclens-google-maps";
+let loaderPromise;
 
-function loadGoogleMapsScript() {
-  if (typeof window === "undefined") {
-    return Promise.reject(new Error("Google Maps can only load in the browser."));
-  }
-
+function loadGoogleMaps() {
   if (window.google?.maps?.Map && window.google.maps.visualization?.HeatmapLayer) {
     return Promise.resolve(window.google.maps);
   }
 
   if (!GOOGLE_MAPS_API_KEY) {
     return Promise.reject(
-      new Error("Google Maps API key is missing. Add VITE_GOOGLE_MAPS_API_KEY.")
+      new Error("Missing VITE_GOOGLE_MAPS_API_KEY. Add it in FRONTEND/.env.")
     );
   }
 
-  if (googleMapsLoaderPromise) {
-    return googleMapsLoaderPromise;
+  if (loaderPromise) {
+    return loaderPromise;
   }
 
-  googleMapsLoaderPromise = new Promise((resolve, reject) => {
-    const existingScript = document.getElementById(GOOGLE_MAPS_SCRIPT_ID);
+  loaderPromise = new Promise((resolve, reject) => {
+    const existing = document.getElementById(SCRIPT_ID);
 
-    const handleLoad = () => {
+    const onLoad = () => {
       if (window.google?.maps?.Map && window.google.maps.visualization?.HeatmapLayer) {
         resolve(window.google.maps);
-        return;
+      } else {
+        reject(new Error("Google Maps loaded, but visualization library is unavailable."));
       }
-
-      googleMapsLoaderPromise = undefined;
-      reject(new Error("Google Maps loaded without visualization support."));
     };
 
-    const handleError = () => {
-      googleMapsLoaderPromise = undefined;
-      reject(new Error("Failed to load Google Maps."));
-    };
+    const onError = () => reject(new Error("Failed to load Google Maps script."));
 
-    if (existingScript) {
-      existingScript.addEventListener("load", handleLoad, { once: true });
-      existingScript.addEventListener("error", handleError, { once: true });
+    if (existing) {
+      existing.addEventListener("load", onLoad, { once: true });
+      existing.addEventListener("error", onError, { once: true });
       return;
     }
 
     const script = document.createElement("script");
-    script.id = GOOGLE_MAPS_SCRIPT_ID;
-    script.src =
-      `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}` +
-      "&libraries=visualization";
+    script.id = SCRIPT_ID;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=visualization`;
     script.async = true;
     script.defer = true;
-    script.addEventListener("load", handleLoad, { once: true });
-    script.addEventListener("error", handleError, { once: true });
+    script.addEventListener("load", onLoad, { once: true });
+    script.addEventListener("error", onError, { once: true });
     document.head.appendChild(script);
   });
 
-  return googleMapsLoaderPromise;
-}
-
-function hasCoordinates(complaint) {
-  return Number.isFinite(Number(complaint?.lat)) && Number.isFinite(Number(complaint?.lng));
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  return loaderPromise;
 }
 
 function markerColorForComplaint(complaint) {
@@ -85,86 +61,44 @@ function markerColorForComplaint(complaint) {
   return "#22c55e";
 }
 
-function buildInfoWindowContent(complaint) {
-  return `
-    <div style="min-width:220px; padding:6px 2px; color:#111827;">
-      <div style="font-weight:700; font-size:15px; margin-bottom:6px;">
-        ${escapeHtml(complaint.title || "Untitled complaint")}
-      </div>
-      <div style="font-size:13px; margin-bottom:6px;">
-        ${escapeHtml(complaint.location || "No location provided")}
-      </div>
-      <div style="font-size:12px; margin-bottom:4px;">
-        <strong>Category:</strong> ${escapeHtml(complaint.category || "UNASSIGNED")}
-      </div>
-      <div style="font-size:12px; margin-bottom:4px;">
-        <strong>Urgency:</strong> ${escapeHtml(complaint.urgency || "UNASSIGNED")}
-      </div>
-      <div style="font-size:12px; margin-bottom:4px;">
-        <strong>Region:</strong> ${escapeHtml(complaint.region || "UNCLASSIFIED")}
-      </div>
-      <div style="font-size:12px; margin-bottom:4px;">
-        <strong>Locality:</strong> ${escapeHtml(complaint.locality || "UNKNOWN")}
-      </div>
-      <div style="font-size:12px;">
-        <strong>Priority:</strong> ${escapeHtml(
-          complaint.priority_score !== null && complaint.priority_score !== undefined
-            ? String(complaint.priority_score)
-            : "UNASSIGNED"
-        )}
-      </div>
-    </div>
-  `;
+function validCoordinates(item) {
+  return Number.isFinite(Number(item?.lat)) && Number.isFinite(Number(item?.lng));
 }
 
 function MapComponent({ complaints = [] }) {
-  const mapElementRef = useRef(null);
+  const mapNodeRef = useRef(null);
   const mapRef = useRef(null);
-  const infoWindowRef = useRef(null);
   const markersRef = useRef([]);
   const heatmapRef = useRef(null);
   const [error, setError] = useState("");
-  const [isMapReady, setIsMapReady] = useState(false);
 
-  const mapComplaints = useMemo(
-    () => complaints.filter((complaint) => hasCoordinates(complaint)),
+  const plottedComplaints = useMemo(
+    () => complaints.filter(validCoordinates),
     [complaints]
   );
 
   useEffect(() => {
-    let isMounted = true;
+    let alive = true;
 
-    const initializeMap = async () => {
-      try {
-        await loadGoogleMapsScript();
+    void loadGoogleMaps()
+      .then(() => {
+        if (!alive || mapRef.current || !mapNodeRef.current) return;
 
-        if (!isMounted || mapRef.current || !mapElementRef.current) {
-          return;
-        }
-
-        mapRef.current = new window.google.maps.Map(mapElementRef.current, {
+        mapRef.current = new window.google.maps.Map(mapNodeRef.current, {
           center: DELHI_CENTER,
           zoom: 10,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: true,
         });
-
-        infoWindowRef.current = new window.google.maps.InfoWindow();
-        setError("");
-        setIsMapReady(true);
-      } catch (loadError) {
-        console.error(loadError);
-        if (isMounted) {
-          setError(loadError.message || "Failed to load Google Maps.");
-        }
-      }
-    };
-
-    void initializeMap();
+      })
+      .catch((err) => {
+        console.error(err);
+        if (alive) setError(err.message || "Map failed to load.");
+      });
 
     return () => {
-      isMounted = false;
+      alive = false;
       markersRef.current.forEach((marker) => marker.setMap(null));
       markersRef.current = [];
       if (heatmapRef.current) {
@@ -175,9 +109,7 @@ function MapComponent({ complaints = [] }) {
   }, []);
 
   useEffect(() => {
-    if (!isMapReady || !mapRef.current || !window.google?.maps) {
-      return;
-    }
+    if (!mapRef.current || !window.google?.maps) return;
 
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
@@ -187,7 +119,7 @@ function MapComponent({ complaints = [] }) {
       heatmapRef.current = null;
     }
 
-    if (!mapComplaints.length) {
+    if (!plottedComplaints.length) {
       mapRef.current.setCenter(DELHI_CENTER);
       mapRef.current.setZoom(10);
       return;
@@ -195,7 +127,7 @@ function MapComponent({ complaints = [] }) {
 
     const bounds = new window.google.maps.LatLngBounds();
 
-    markersRef.current = mapComplaints.map((complaint) => {
+    plottedComplaints.forEach((complaint) => {
       const position = {
         lat: Number(complaint.lat),
         lng: Number(complaint.lng),
@@ -206,7 +138,7 @@ function MapComponent({ complaints = [] }) {
       const marker = new window.google.maps.Marker({
         map: mapRef.current,
         position,
-        title: complaint.title,
+        title: complaint.title || "Complaint",
         icon: {
           path: window.google.maps.SymbolPath.CIRCLE,
           fillColor: markerColorForComplaint(complaint),
@@ -217,41 +149,56 @@ function MapComponent({ complaints = [] }) {
         },
       });
 
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="min-width:220px;color:#111827;">
+            <div style="font-weight:700;margin-bottom:6px;">${complaint.title || "Complaint"}</div>
+            <div style="font-size:12px;margin-bottom:4px;"><strong>Locality:</strong> ${complaint.locality || "UNKNOWN"}</div>
+            <div style="font-size:12px;margin-bottom:4px;"><strong>Region:</strong> ${complaint.region || "UNCLASSIFIED"}</div>
+            <div style="font-size:12px;margin-bottom:4px;"><strong>Category:</strong> ${complaint.category || "UNASSIGNED"}</div>
+            <div style="font-size:12px;margin-bottom:4px;"><strong>Urgency:</strong> ${complaint.urgency || "UNASSIGNED"}</div>
+            <div style="font-size:12px;"><strong>Priority:</strong> ${complaint.priority_score ?? "N/A"}</div>
+          </div>
+        `,
+      });
+
       marker.addListener("click", () => {
-        infoWindowRef.current?.setContent(buildInfoWindowContent(complaint));
-        infoWindowRef.current?.open({
+        infoWindow.open({
           anchor: marker,
           map: mapRef.current,
         });
       });
 
-      return marker;
+      markersRef.current.push(marker);
     });
 
     heatmapRef.current = new window.google.maps.visualization.HeatmapLayer({
-      data: mapComplaints.map(
+      data: plottedComplaints.map(
         (complaint) =>
-          new window.google.maps.LatLng(Number(complaint.lat), Number(complaint.lng))
+          new window.google.maps.LatLng(
+            Number(complaint.lat),
+            Number(complaint.lng)
+          )
       ),
       map: mapRef.current,
-      radius: 28,
-      opacity: 0.6,
+      radius: 32,
+      opacity: 0.72,
     });
 
-    if (mapComplaints.length === 1) {
+    if (plottedComplaints.length === 1) {
       mapRef.current.setCenter(bounds.getCenter());
       mapRef.current.setZoom(14);
       return;
     }
 
     mapRef.current.fitBounds(bounds, 72);
-  }, [isMapReady, mapComplaints]);
+  }, [plottedComplaints]);
 
   return (
-    <section
+    <div
       style={{
         display: "grid",
-        gap: "1rem",
+        gap: "0.75rem",
         padding: "1rem",
         borderRadius: "20px",
         background: "rgba(255,255,255,0.05)",
@@ -259,24 +206,19 @@ function MapComponent({ complaints = [] }) {
       }}
     >
       <div>
-        <div style={{ fontSize: "0.85rem", opacity: 0.8, marginBottom: "0.35rem" }}>
-          Delhi complaint map
-        </div>
-        <h3 style={{ margin: 0 }}>Markers and density heatmap</h3>
-      </div>
-
-      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", fontSize: "0.95rem" }}>
-        <span>{complaints.length} total complaints in current view</span>
-        <span>{mapComplaints.length} complaints with coordinates</span>
+        <h3 style={{ margin: 0 }}>Delhi Heatmap & Complaint Clusters</h3>
+        <p style={{ margin: "0.35rem 0 0", opacity: 0.8 }}>
+          Marker color shows urgency. Heatmap intensity shows complaint concentration.
+        </p>
       </div>
 
       {error ? (
         <div
           style={{
-            padding: "1rem",
+            padding: "0.85rem 1rem",
             borderRadius: "14px",
             background: "rgba(239,68,68,0.12)",
-            border: "1px solid rgba(239,68,68,0.25)",
+            border: "1px solid rgba(239,68,68,0.24)",
           }}
         >
           {error}
@@ -284,22 +226,16 @@ function MapComponent({ complaints = [] }) {
       ) : null}
 
       <div
-        ref={mapElementRef}
+        ref={mapNodeRef}
         style={{
           width: "100%",
-          minHeight: "420px",
-          borderRadius: "18px",
+          minHeight: "460px",
+          borderRadius: "16px",
           overflow: "hidden",
           background: "rgba(255,255,255,0.04)",
         }}
       />
-
-      {!mapComplaints.length ? (
-        <p style={{ margin: 0, opacity: 0.8 }}>
-          Complaints need valid latitude and longitude to appear on the map.
-        </p>
-      ) : null}
-    </section>
+    </div>
   );
 }
 

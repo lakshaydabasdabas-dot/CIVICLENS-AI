@@ -1,23 +1,6 @@
-"""
-DUPLICATE DETECTION SERVICE
-
-This service checks whether an incoming complaint is likely
-a duplicate of an existing complaint.
-
-Current version:
-- queries existing complaints from the database
-- compares title + description + location + category
-- returns the best match if above threshold
-
-Later upgrades can add:
-- embeddings
-- vector search
-- duplicate clusters across all complaints
-"""
-
 from __future__ import annotations
 
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -26,7 +9,7 @@ from APP.SERVICES.SIMILARITY_SERVICE import compute_duplicate_score
 
 
 DUPLICATE_THRESHOLD = 0.72
-CANDIDATE_LIMIT = 50
+CANDIDATE_LIMIT = 100
 
 
 def build_cluster_id(complaint_id: int) -> str:
@@ -48,44 +31,48 @@ def find_possible_duplicate(
         .all()
     )
 
-    best_match = None
-    best_score = 0.0
+    scored_candidates: List[Dict[str, Any]] = []
 
     for candidate in candidates:
         score = compute_duplicate_score(
-            title,
-            description,
-            location,
-            category,
-            candidate.title,
-            candidate.description,
-            candidate.location,
-            candidate.category,
+            title_1=title,
+            description_1=description,
+            location_1=location,
+            category_1=category,
+            title_2=candidate.title,
+            description_2=candidate.description,
+            location_2=candidate.location,
+            category_2=candidate.category,
         )
 
-        if score > best_score:
-            best_score = score
-            best_match = candidate
+        scored_candidates.append(
+            {
+                "id": candidate.id,
+                "title": candidate.title,
+                "location": candidate.location,
+                "category": candidate.category,
+                "similarity_score": score,
+                "duplicate_cluster_id": candidate.duplicate_cluster_id,
+            }
+        )
 
-    if best_match and best_score >= DUPLICATE_THRESHOLD:
-        cluster_id = best_match.duplicate_cluster_id or build_cluster_id(best_match.id)
+    scored_candidates.sort(key=lambda item: item["similarity_score"], reverse=True)
+    top_similar_cases = scored_candidates[:5]
+
+    if top_similar_cases and top_similar_cases[0]["similarity_score"] >= DUPLICATE_THRESHOLD:
+        best_match = top_similar_cases[0]
+        cluster_id = best_match["duplicate_cluster_id"] or build_cluster_id(best_match["id"])
+
         return {
-            "duplicate_of": best_match.id,
-            "similarity_score": round(best_score, 4),
+            "duplicate_of": best_match["id"],
+            "similarity_score": best_match["similarity_score"],
             "duplicate_cluster_id": cluster_id,
-            "top_similar_cases": [
-                {
-                    "id": best_match.id,
-                    "title": best_match.title,
-                    "location": best_match.location,
-                    "similarity_score": round(best_score, 4),
-                }
-            ],
+            "top_similar_cases": top_similar_cases,
         }
 
     return {
         "duplicate_of": None,
-        "similarity_score": round(best_score, 4),
+        "similarity_score": top_similar_cases[0]["similarity_score"] if top_similar_cases else 0.0,
         "duplicate_cluster_id": None,
-        "top_similar_cases": [],
+        "top_similar_cases": top_similar_cases,
     }

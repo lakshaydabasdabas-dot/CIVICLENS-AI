@@ -1,177 +1,49 @@
-const GOOGLE_MAPS_API_KEY =
-  import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || "";
+export const GOOGLE_MAPS_API_KEY =
+  (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "").trim();
 
-const GEOCODE_CACHE_KEY = "civiclens:geocode-cache";
-const REVERSE_GEOCODE_CACHE_KEY = "civiclens:reverse-geocode-cache";
-const DEFAULT_REVERSE_GEOCODE_NAME = "Selected Location";
-
-const geocodeMemoryCache = new Map();
-const reverseGeocodeMemoryCache = new Map();
-
-function readCache(cacheKey) {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  try {
-    const rawCache = window.localStorage.getItem(cacheKey);
-    return rawCache ? JSON.parse(rawCache) : {};
-  } catch (error) {
-    console.error(`Failed to read cache for ${cacheKey}.`, error);
-    return {};
-  }
-}
-
-function writeCache(cacheKey, cache) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(cacheKey, JSON.stringify(cache));
-  } catch (error) {
-    console.error(`Failed to write cache for ${cacheKey}.`, error);
-  }
-}
-
-function getLocationCacheKey(location) {
-  return location.trim().toLowerCase();
-}
-
-function getReverseLocationCacheKey(lat, lng) {
-  return `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
-}
-
-function isPlusCodeAddress(value) {
-  return /^[A-Z0-9]{4,}\+[A-Z0-9]{2,}\b/i.test((value || "").trim());
-}
-
-function getFormattedAddress(results, fallbackName = DEFAULT_REVERSE_GEOCODE_NAME) {
-  if (!Array.isArray(results)) {
-    return fallbackName;
-  }
-
-  const preferredResult = results.find((result) => {
-    const formattedAddress = result?.formatted_address?.trim();
-    const resultTypes = Array.isArray(result?.types) ? result.types : [];
-
-    return (
-      formattedAddress &&
-      !isPlusCodeAddress(formattedAddress) &&
-      !resultTypes.includes("plus_code")
-    );
-  });
-
-  return preferredResult?.formatted_address?.trim() || fallbackName;
-}
-
-async function requestGeocode(params) {
+export async function getCoordinates(address) {
   if (!GOOGLE_MAPS_API_KEY) {
-    throw new Error("Missing VITE_GOOGLE_MAPS_API_KEY in frontend environment.");
+    throw new Error("Missing VITE_GOOGLE_MAPS_API_KEY");
   }
 
-  params.set("key", GOOGLE_MAPS_API_KEY);
-
-  const response = await fetch(
-    `https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`
-  );
-
-  if (!response.ok) {
-    throw new Error("Geocoding request failed.");
-  }
-
-  return response.json();
-}
-
-export async function getCoordinates(location) {
-  const trimmedLocation = location?.trim();
-
-  if (!trimmedLocation) {
+  const trimmed = String(address || "").trim();
+  if (!trimmed) {
     throw new Error("Location is required.");
   }
 
-  const cacheKey = getLocationCacheKey(trimmedLocation);
+  const response = await fetch(
+    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+      trimmed
+    )}&components=country:IN&key=${GOOGLE_MAPS_API_KEY}`
+  );
 
-  if (geocodeMemoryCache.has(cacheKey)) {
-    return geocodeMemoryCache.get(cacheKey);
+  const data = await response.json();
+
+  if (data.status !== "OK" || !data.results?.[0]?.geometry?.location) {
+    throw new Error("Unable to geocode the location.");
   }
 
-  const storedCache = readCache(GEOCODE_CACHE_KEY);
-
-  if (storedCache[cacheKey]) {
-    geocodeMemoryCache.set(cacheKey, storedCache[cacheKey]);
-    return storedCache[cacheKey];
-  }
-
-  const params = new URLSearchParams({
-    address: trimmedLocation,
-    components: "country:IN",
-  });
-
-  const payload = await requestGeocode(params);
-
-  if (payload.status !== "OK" || !payload.results?.[0]?.geometry?.location) {
-    throw new Error("Location could not be geocoded.");
-  }
-
-  const coordinates = {
-    lat: payload.results[0].geometry.location.lat,
-    lng: payload.results[0].geometry.location.lng,
+  return {
+    name: data.results[0].formatted_address,
+    lat: data.results[0].geometry.location.lat,
+    lng: data.results[0].geometry.location.lng,
   };
-
-  geocodeMemoryCache.set(cacheKey, coordinates);
-  writeCache(GEOCODE_CACHE_KEY, {
-    ...storedCache,
-    [cacheKey]: coordinates,
-  });
-
-  return coordinates;
 }
 
-export async function reverseGeocode(
-  lat,
-  lng,
-  fallbackName = DEFAULT_REVERSE_GEOCODE_NAME
-) {
-  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
-    throw new Error("Valid coordinates are required.");
+export async function reverseGeocode(lat, lng) {
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("Missing VITE_GOOGLE_MAPS_API_KEY");
   }
 
-  const cacheKey = getReverseLocationCacheKey(lat, lng);
+  const response = await fetch(
+    `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`
+  );
 
-  if (reverseGeocodeMemoryCache.has(cacheKey)) {
-    return reverseGeocodeMemoryCache.get(cacheKey);
+  const data = await response.json();
+
+  if (data.status !== "OK" || !data.results?.[0]?.formatted_address) {
+    return `Selected location (${lat}, ${lng})`;
   }
 
-  const storedCache = readCache(REVERSE_GEOCODE_CACHE_KEY);
-
-  if (storedCache[cacheKey]) {
-    reverseGeocodeMemoryCache.set(cacheKey, storedCache[cacheKey]);
-    return storedCache[cacheKey];
-  }
-
-  const params = new URLSearchParams({
-    latlng: `${lat},${lng}`,
-  });
-
-  try {
-    const payload = await requestGeocode(params);
-    const locationName =
-      payload.status === "OK"
-        ? getFormattedAddress(payload.results, fallbackName)
-        : fallbackName;
-
-    reverseGeocodeMemoryCache.set(cacheKey, locationName);
-    writeCache(REVERSE_GEOCODE_CACHE_KEY, {
-      ...storedCache,
-      [cacheKey]: locationName,
-    });
-
-    return locationName;
-  } catch (error) {
-    console.error("Reverse geocoding failed.", error);
-    return fallbackName;
-  }
+  return data.results[0].formatted_address;
 }
-
-export { GOOGLE_MAPS_API_KEY };
