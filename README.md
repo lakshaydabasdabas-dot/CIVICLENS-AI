@@ -1,26 +1,27 @@
 # CIVICLENS-AI
 
 ## Project Overview
-An intelligent platform designed to analyze and interpret civic data using AI, providing transparency and actionable insights.
+CIVICLENS-AI is an intellectual platform dedicated to analyzing complex civic data. By utilizing advanced AI, it transforms raw public information into transparent, actionable insights for policy makers and citizens.
 
 ## Tech Stack
-*   **Language**: Python
-*   **Key Libraries**: [e.g., Pandas, Scikit-Learn]
-*   **Infrastructure**: Vercel, Python-based backend
+*   **Backend**: Python
+*   **Data Processing**: Pandas, NumPy
+*   **Machine Learning**: Scikit-Learn
+*   **Infrastructure**: Vercel (Deployment)
 
 ## Architecture & Design Choices
-- **Design Principles**: Data-driven, user-centric, transparency-focused.
-- **Key Patterns**: REST API, Data processing pipeline.
+- **Design Architecture**: REST API-driven backend with a high-performance data processing pipeline.
+- **Safety**: Built with interpretability at the core to ensure trust in AI decisions.
 
 ## Setup Instructions
 ```bash
 # Clone the repository
 git clone https://github.com/lakshaydabasdabas-dot/CIVICLENS-AI.git
-# Setup virtual environment and install requirements
+# Install dependencies
 pip install -r requirements.txt
 # Run the application
 python main.py
 ```
 
-## API & Usage Examples
-[Provide data ingestion examples or API endpoint documentation here.]
+## API Usage
+This project exposes endpoints for data ingestion and query processing. Check the `/api/docs` folder for detailed specifications.
